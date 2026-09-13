@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.smartspoon.l2"
+    android:versionCode="1"
+    android:versionName="0.0.1">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
+
+    <!-- Android 11+ 需要声明要查询的相机 / 图库 Intent，否则 startActivity 会失败 -->
+    <queries>
+        <intent>
+            <action android:name="android.media.action.IMAGE_CAPTURE" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.GET_CONTENT" />
+            <category android:name="android.intent.category.OPENABLE" />
+            <data android:mimeType="image/*" />
+        </intent>
+    </queries>
+
+    <application
+        android:name="com.smartspoon.l2.SmartSpoonApplication"
+        android:allowBackup="true"
+        android:hardwareAccelerated="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme"
+        android:usesCleartextTraffic="true">
+
+        <activity
+            android:name="com.smartspoon.l2.MainActivity"
+            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- 深链用显式 Intent 打开（adb shell am start -n com.smartspoon.l2/.MainActivity -d "http://…"），
+                 因此这里刻意不声明 VIEW/BROWSABLE，避免应用出现在系统的「打开链接」选择器里。 -->
+        </activity>
+
+        <!-- 拍照识别时把相机写入的文件安全地交给相机应用 -->
+        <provider
+            android:name="com.smartspoon.l2.ShotProvider"
+            android:authorities="com.smartspoon.l2.shots"
+            android:exported="false"
+            android:grantUriPermissions="true" />
+
+        <!-- 设置区的四个子页：和 Gramophone 一样是独立 Activity，
+             于是转场用的是**系统原生的 Activity 动画**，整窗（标题栏 + 内容）一起转场。
+             parentActivityName 让系统对「返回」也套用正确的转场方向。 -->
+        <activity
+            android:name="com.smartspoon.l2.ui.DeviceSettingsActivity"
+            android:exported="false"
+            android:label="设备管理"
+            android:parentActivityName="com.smartspoon.l2.MainActivity"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name="com.smartspoon.l2.ui.MenuManageActivity"
+            android:exported="false"
+            android:label="菜单"
+            android:parentActivityName="com.smartspoon.l2.MainActivity"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name="com.smartspoon.l2.ui.MiscSettingsActivity"
+            android:exported="false"
+            android:label="杂项"
+            android:parentActivityName="com.smartspoon.l2.MainActivity"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name="com.smartspoon.l2.ui.AccountSettingsActivity"
+            android:exported="false"
+            android:label="账户设置"
+            android:parentActivityName="com.smartspoon.l2.MainActivity"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize" />
+
+        <!-- 统计数据（设计稿第 13 页）：同样走系统原生 Activity 转场 -->
+        <activity
+            android:name="com.smartspoon.l2.ui.StatsActivity"
+            android:exported="false"
+            android:label="统计数据"
+            android:parentActivityName="com.smartspoon.l2.MainActivity"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name="com.smartspoon.l2.ui.StatsSummaryActivity"
+            android:exported="false"
+            android:label="统计数据汇总"
+            android:parentActivityName="com.smartspoon.l2.ui.StatsActivity"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize" />
+
+        <!-- 用餐流程的四个页面（设计稿 p.02 / p.03 / p.07 / p.08）。
+             和设置子页一样是独立 Activity：转场是系统原生的 Activity 转场，
+             整窗（标题栏 + 折叠行为 + 内容）一起动。
+             parentActivityName 让系统对「返回」也套用正确的转场方向。 -->
+        <activity
+            android:name="com.smartspoon.l2.ui.MenuChooserActivity"
+            android:exported="false"
+            android:label="选择本餐菜单"
+            android:parentActivityName="com.smartspoon.l2.MainActivity"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name="com.smartspoon.l2.ui.FoodPickerActivity"
+            android:exported="false"
+            android:label="自定义本餐菜单"
+            android:parentActivityName="com.smartspoon.l2.MainActivity"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name="com.smartspoon.l2.ui.LiveActivity"
+            android:exported="false"
+            android:label="用餐中"
+            android:parentActivityName="com.smartspoon.l2.MainActivity"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name="com.smartspoon.l2.ui.ResultActivity"
+            android:exported="false"
+            android:label="用餐结果"
+            android:parentActivityName="com.smartspoon.l2.MainActivity"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize" />
+
+    </application>
+</manifest>

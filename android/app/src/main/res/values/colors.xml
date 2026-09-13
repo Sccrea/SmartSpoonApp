@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 与设计稿一致的配色（详见 _design/design_notes.md） -->
+    <color name="brand_bg">#F0F0F0</color>
+    <color name="brand_green">#A6D640</color>
+    <color name="step_green">#00FF00</color>
+    <color name="step_red">#FF0000</color>
+    <color name="brand_teal">#2BBDBD</color>
+    <color name="status_bar">#000000</color>
+</resources>

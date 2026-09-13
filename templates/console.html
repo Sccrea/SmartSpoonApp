@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>智味勺模拟控制台</title>
+<style>
+  :root { --brand:#A6D640; --bg:#F0F0F0; --line:#DDD; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:24px; background:var(--bg); font:14px/1.6 "PingFang SC","Microsoft YaHei",system-ui,sans-serif; color:#111; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  .sub { color:#666; font-size:13px; margin-bottom:18px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(340px,1fr)); gap:16px; max-width:1100px; }
+  .card { background:#fff; border-radius:12px; padding:16px 18px; }
+  .card h2 { font-size:15px; margin:0 0 12px; color:#333; }
+  .row { display:flex; align-items:center; justify-content:space-between; gap:10px; margin:10px 0; }
+  label { color:#555; }
+  input[type=text], input[type=number], select { font:inherit; padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:#fff; min-width:0; }
+  input[type=range] { width:100%; accent-color:var(--brand); }
+  button { font:inherit; padding:9px 16px; border-radius:999px; border:2px solid var(--brand); background:#fff; color:#5c7a12; cursor:pointer; }
+  button.solid { background:var(--brand); color:#111; border-color:var(--brand); font-weight:600; }
+  button:active { opacity:.75; }
+  .pill { display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:999px; background:#F5F5F5; font-size:12px; }
+  .on { color:#2f7d00; } .off { color:#c0392b; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th,td { text-align:left; padding:6px 8px; border-bottom:1px solid #F0F0F0; }
+  th { color:#777; font-weight:500; }
+  .mono { font-family:ui-monospace,Consolas,monospace; }
+  .muted { color:#888; font-size:12px; }
+  .actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
+</style>
+</head>
+<body>
+  <h1>智味勺模拟控制台</h1>
+  <div class="sub">没有真机时，App 从这里读取勺子数据：修改读数 → App 轮询到后显示；「推送一口」即模拟勺了一口。</div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>设备状态</h2>
+      <div class="row">
+        <label>连接</label>
+        <select id="connected"><option value="true">已连接</option><option value="false">未连接</option></select>
+      </div>
+      <div class="row">
+        <label>记录中</label>
+        <select id="recording"><option value="false">未记录</option><option value="true">用餐记录中</option></select>
+      </div>
+      <div class="row">
+        <label>设备名</label>
+        <input type="text" id="device" style="flex:1">
+      </div>
+      <div class="row">
+        <label>剩余电量</label>
+        <input type="number" id="battery" min="0" max="100" style="width:90px">
+      </div>
+      <div class="actions">
+        <button class="solid" onclick="applyState()">应用修改</button>
+        <button onclick="post('/api/device/reset')">重置</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>当前勺中读数</h2>
+      <div class="row">
+        <label>食物</label>
+        <select id="food" style="flex:1"></select>
+      </div>
+      <div class="row"><label>重量</label><span id="weightLabel" class="mono">0 g</span></div>
+      <input type="range" id="weight" min="0" max="120" step="1" value="0" oninput="weightLabel.textContent = this.value + ' g'">
+      <div class="muted">热量按 2.4 kJ/g 估算，也可以在下方手动推送时指定。</div>
+      <div class="actions">
+        <button class="solid" onclick="applyReading()">更新读数</button>
+        <button class="solid" onclick="pushBite()">推送一口</button>
+      </div>
+      <div class="actions">
+        <button onclick="toggleAuto()" id="autoBtn">开启自动模拟</button>
+        <span class="pill" id="autoState">自动模拟：关</span>
+      </div>
+      <div class="row">
+        <label>自动间隔(秒)</label>
+        <input type="number" id="interval" min="2" max="60" value="8" style="width:90px">
+        <button onclick="applyInterval()">应用</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>已推送的口 <span class="muted" id="biteCount"></span></h2>
+      <table><thead><tr><th>#</th><th>食物</th><th>重量</th><th>热量</th><th>时间</th></tr></thead>
+        <tbody id="bites"></tbody></table>
+      <div class="actions">
+        <button onclick="post('/api/device/clear')">清空</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>接口</h2>
+      <div class="muted">
+        App 轮询：<span class="mono">GET /api/device/state?since=&lt;seq&gt;</span><br>
+        推送一口：<span class="mono">POST /api/device/bite {food, weight, energy}</span><br>
+        修改状态：<span class="mono">POST /api/device/state {connected, recording, food, weight…}</span>
+      </div>
+      <div class="row"><label>服务器时间</label><span id="serverTime" class="mono">—</span></div>
+      <div class="row"><label>seq</label><span id="seq" class="mono">0</span></div>
+      <div class="row"><label>上次更新</label><span id="updated" class="mono">—</span></div>
+    </div>
+  </div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let seq = 0, auto = false, loaded = false;
+
+async function get(url) { const r = await fetch(url); return r.json(); }
+async function post(url, body) {
+  const r = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body||{}) });
+  const data = await r.json();
+  render(data.state);
+  return data;
+}
+
+function render(state) {
+  if (!state) return;
+  seq = state.seq || 0;
+  auto = !!state.auto;
+  $('serverTime').textContent = state.serverTime || '—';
+  $('seq').textContent = seq;
+  $('updated').textContent = state.updated || '—';
+  $('autoState').textContent = '自动模拟：' + (auto ? '开' : '关');
+  $('autoState').className = 'pill ' + (auto ? 'on' : 'off');
+  $('autoBtn').textContent = auto ? '关闭自动模拟' : '开启自动模拟';
+  $('biteCount').textContent = '（' + (state.biteCount || 0) + '）';
+
+  if (!loaded) {
+    $('connected').value = String(state.connected);
+    $('recording').value = String(state.recording);
+    $('device').value = state.device || '';
+    $('battery').value = state.battery ?? 60;
+    $('interval').value = state.interval ?? 8;
+    loaded = true;
+  }
+  $('food').value = state.food;
+  $('weight').value = Math.min(120, Math.round(state.weight || 0));
+  $('weightLabel').textContent = (state.weight || 0) + ' g';
+
+  const rows = (state.bites || []).slice(-12).reverse().map(b =>
+    `<tr><td>${b.no}</td><td>${b.food}</td><td class="mono">${b.weight} g</td><td class="mono">${b.energy} kJ</td><td class="muted">${b.at.slice(11)}</td></tr>`
+  ).join('');
+  $('bites').innerHTML = rows || '<tr><td colspan="5" class="muted">还没有推送过</td></tr>';
+}
+
+function applyState() {
+  post('/api/device/state', {
+    connected: $('connected').value === 'true',
+    recording: $('recording').value === 'true',
+    device: $('device').value,
+    battery: Number($('battery').value),
+  });
+}
+function applyReading() {
+  post('/api/device/state', { food: $('food').value, weight: Number($('weight').value) });
+}
+function pushBite() {
+  post('/api/device/bite', { food: $('food').value, weight: Number($('weight').value) });
+}
+function toggleAuto() { post('/api/device/state', { auto: !auto, interval: Number($('interval').value) }); }
+function applyInterval() { post('/api/device/state', { interval: Number($('interval').value) }); }
+
+async function loadFoods() {
+  try {
+    const data = await get('/api/dishes');
+    const options = (data.foods || []).map(f => `<option>${f.name}</option>`).join('');
+    $('food').innerHTML = options || '<option>孜然羊肉</option>';
+  } catch (e) { $('food').innerHTML = '<option>孜然羊肉</option>'; }
+}
+
+async function poll() { try { render((await get('/api/device/state')).state); } catch (e) {} }
+
+loadFoods().then(poll);
+setInterval(poll, 1500);
+</script>
+</body>
+</html>

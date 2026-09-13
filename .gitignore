@@ -1,0 +1,31 @@
+__pycache__/
+*.py[cod]
+.venv/
+.env
+uploads/*
+!uploads/.gitkeep
+_design/
+
+# Kotlin 编译器与依赖（从 Maven Central 下载，见 android/README.md）
+_tools/
+
+# Android 生成物
+android/build/
+android/app/build/
+android/.gradle/
+android/.kotlin/
+android/_gradle/
+android/local.properties
+*.apk
+*.idsig
+
+# 注意：android/debug.keystore **故意提交**——app/build.gradle.kts 的签名配置引用它，
+# 不提交的话别人克隆下来 assembleDebug 会直接失败。它只是调试密钥，
+# 别名 androiddebugkey、口令 android（公开约定），不构成机密。
+
+# 服务器运行时数据（菜品库由首次运行自动生成）
+data/
+
+# 临时文件 / DSH 会话导出（不属于项目内容）
+_tmp*
+dsh-session-*.zip

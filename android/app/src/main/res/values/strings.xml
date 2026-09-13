@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">智味勺</string>
+    <string name="server_dialog_title">Flask 服务器地址</string>
+    <string name="server_dialog_hint">例如 http://192.168.1.10:5000</string>
+    <string name="offline_toast">未连接服务器，已进入离线演示模式（长按屏幕可设置服务器地址）</string>
+</resources>
