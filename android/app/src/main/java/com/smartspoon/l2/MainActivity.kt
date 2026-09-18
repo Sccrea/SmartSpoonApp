@@ -28,8 +28,13 @@ import com.smartspoon.l2.ui.SmartSpoonTheme
  */
 class MainActivity : ComponentActivity() {
 
-    /** 拍照 / 选图 / 上传识别（这一层只剩弹窗里那个「拍照识别菜品」会用到）。 */
-    private val photos by lazy { PhotoRecognizer(this) }
+    /*
+     * 拍照 / 选图 / 上传识别（这一层只剩弹窗里那个「拍照识别菜品」会用到）。
+     *
+     * 同 [BaseMealActivity]：这里必须是饿汉式字段初始化，不能 `by lazy` ——
+     * `registerForActivityResult` 只允许在 Activity STARTED 之前注册。
+     */
+    private val photos = PhotoRecognizer(this)
 
     /**
      * 弹窗宿主能力（见 [DialogActions]）。

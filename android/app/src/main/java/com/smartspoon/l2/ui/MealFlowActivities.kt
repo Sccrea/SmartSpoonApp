@@ -97,7 +97,17 @@ interface MealFlowHost {
  */
 abstract class BaseMealActivity : BasePageActivity(), MealFlowHost, DialogActions {
 
-    private val photos by lazy { PhotoRecognizer(this) }
+    /*
+     * 拍照 / 选图 / 上传识别。
+     *
+     * 必须是**饿汉式**的字段初始化，**不能写成 `by lazy`**：[PhotoRecognizer] 的构造函数里
+     * 要调 `registerForActivityResult`，而它只允许在 Activity STARTED 之前注册。
+     * 字段初始化发生在构造期（早于 onCreate），合法；换成 by lazy 会推迟到第一次点
+     * 「拍照 / 选择图片」时才注册，那时 Activity 已经是 RESUMED —— 直接抛
+     * `IllegalStateException: ... is attempting to register while current state is RESUMED`，
+     * 表现就是一点就闪退。
+     */
+    private val photos = PhotoRecognizer(this)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // 新进来的一页不该继承上一个 Activity 留下的弹窗

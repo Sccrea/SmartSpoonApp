@@ -21,6 +21,26 @@ import java.io.File
  * 两边都要用它，于是收成这个小助手：**谁的界面里有「拍照识别菜品」，谁就持有一份**。
  *
  * 照片与识别的结果都只写全局 [State]，所以两个宿主共用同一份行为，不会各写一半。
+ *
+ * ## 宿主必须饿汉式持有它
+ *
+ * 构造函数里会调 `ComponentActivity.registerForActivityResult`，而那个 API
+ * **只允许在 Activity STARTED 之前注册**。所以宿主必须写成普通字段：
+ *
+ * ```kotlin
+ * private val photos = PhotoRecognizer(this)      // ✅ 字段初始化，构造期执行，早于 onCreate
+ * private val photos by lazy { PhotoRecognizer(this) }   // ❌ 一点「拍照」就闪退
+ * ```
+ *
+ * 用 `by lazy` 的话，注册会被推迟到第一次调用 `takePhoto()` / `pickImage()` 的那一刻，
+ * 那时 Activity 已经是 RESUMED，直接抛：
+ *
+ * ```
+ * IllegalStateException: LifecycleOwner ... is attempting to register while current
+ * state is RESUMED. LifecycleOwners must call register before they are STARTED.
+ * ```
+ *
+ * （这个坑真踩过一次：`by lazy` 版本在「拍照识别菜品 → 拍照 / 选择图片」时必闪退。）
  */
 class PhotoRecognizer(private val activity: ComponentActivity) {
 
