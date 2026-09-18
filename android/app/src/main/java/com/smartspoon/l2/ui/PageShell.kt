@@ -82,7 +82,24 @@ abstract class BasePageActivity : ComponentActivity() {
             SmartSpoonTheme {
                 val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
                 Scaffold(
-                    modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+                    /*
+                     * 折叠联动**只在大标题栏时才挂到 Scaffold 上** —— 这是个很容易踩的坑：
+                     *
+                     * `TopAppBarScrollBehavior` 的 `heightOffsetLimit` 默认是 `-Float.MAX_VALUE`，
+                     * 只有某个 AppBar 真正把这个 behavior 接过去之后，它才会被设成"可折叠的那段高度"。
+                     * 普通高度的 `TopAppBar` 是**钉住**的、不吃这个 behavior，limit 就一直是默认值；
+                     * 于是 `onPreScroll` 里那句 `coerceIn(heightOffsetLimit, heightOffset)` 会把
+                     * **列表所有向下的滚动全部吞掉**（available.y < 0 时它把整个 delta 都当成自己的），
+                     * 表现就是「加菜页怎么划都不动」——列表自己根本收不到手势。
+                     *
+                     * 所以钉住标题栏的页面干脆不挂 nestedScroll：内容自己就能滚，
+                     * 也不需要和标题栏联动。
+                     */
+                    modifier = if (compactBar) {
+                        Modifier
+                    } else {
+                        Modifier.nestedScroll(scrollBehavior.nestedScrollConnection)
+                    },
                     topBar = {
                         if (compactBar) {
                             TopAppBar(
