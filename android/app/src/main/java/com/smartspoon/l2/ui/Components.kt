@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.smartspoon.l2.Food
 import com.smartspoon.l2.State
+import com.smartspoon.l2.Units
 
 /* ------------------------------------------------------------------ 度量 */
 
@@ -231,7 +232,7 @@ fun FoodRow(
     val selected = State.selected.contains(food.id)
     ListRow(
         title = food.name,
-        subtitle = "能量密度: ${"%.2f".format(food.density)}kJ/g · 食用 ${food.times} 次",
+        subtitle = "能量密度: ${Units.density(food.density)} · 食用 ${food.times} 次",
         leading = { CoverBox { Text(State.emojiFor(food), fontSize = 26.sp) } },
         trailing = {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -379,7 +380,15 @@ fun ConfigRow(
     }
 }
 
-/** 开关行。 */
+/**
+ * 开关行。
+ *
+ * **整行可点**：点标题、点说明、点开关任意位置都切换。
+ *
+ * 开关自身**保留** `onCheckedChange`：Compose 的点击不像旧 View 那样向上冒泡，
+ * 点中开关时事件被开关消费、整行那次 `clickable` 不会跟着触发，
+ * 所以不会一次点出两下；这样开关的选中态也照旧在无障碍树里（读屏能报「已开启」）。
+ */
 @Composable
 fun SwitchRow(
     title: String,
@@ -387,7 +396,7 @@ fun SwitchRow(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
 ) {
-    ConfigRow(title, subtitle) {
+    ConfigRow(title, subtitle, onClick = { onCheckedChange(!checked) }) {
         Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
@@ -449,7 +458,13 @@ fun PrefRow(
     }
 }
 
-/** 开关设置行（Gramophone 的 `preference_switch.xml`：右侧就是一整颗 MD3 开关）。 */
+/**
+ * 开关设置行（Gramophone 的 `preference_switch.xml`：右侧就是一整颗 MD3 开关）。
+ *
+ * 和 [SwitchRow] 一样**整行可点**：点标题、点说明、点开关行为完全一致。
+ * 开关自己仍然挂着 `onCheckedChange`（点中开关时事件被它消费，整行不会再触发一次），
+ * 这样开关的选中态继续留在无障碍树里。
+ */
 @Composable
 fun PrefSwitchRow(
     icon: ImageVector,
@@ -458,7 +473,7 @@ fun PrefSwitchRow(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
 ) {
-    PrefRow(icon, title, summary, trailing = {
+    PrefRow(icon, title, summary, onClick = { onCheckedChange(!checked) }, trailing = {
         Switch(checked = checked, onCheckedChange = onCheckedChange)
     })
 }
@@ -482,43 +497,62 @@ fun PrefCategory(title: String) {
 }
 
 /**
- * 值行右侧的「下拉」：Gramophone 那里是一个 `Spinner`（显示当前值 + 小箭头，
- * 没有背景），所以这里也不用胶囊，只用文字 + 箭头 + MD3 的 `DropdownMenu`。
+ * 值行右侧的「下拉」外观：Gramophone 那里是一个 `Spinner`（显示当前值 + 小箭头，没有背景），
+ * 所以这里也不用胶囊，只用文字 + 箭头。
+ *
+ * 它**自己不响应点击** —— 弹出的开关交给整行（见 [PrefSelectRow]），
+ * 这样点标题、点说明、点右边的值都能把列表打开。
  */
 @Composable
-fun PrefDropdown(
+private fun DropdownValue(value: String) {
+    Row(
+        Modifier.padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(value, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.width(4.dp))
+        Icon(
+            Icons.Filled.ArrowDropDown,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/**
+ * 带下拉选择的设置行（对应 Gramophone 的值行 `preference_dropdown_md.xml`）。
+ *
+ * **整行可点**：`PrefRow` 的 `onClick` 负责把列表打开，右侧的值只是显示。
+ * 弹出位置锚定在右侧那个值上（`DropdownMenu` 挂在它的 `Box` 里），
+ * 所以点左边的标题也能弹出到该在的位置。
+ */
+@Composable
+fun PrefSelectRow(
+    icon: ImageVector,
+    title: String,
+    summary: String? = null,
     value: String,
     options: List<String>,
     onPick: (String) -> Unit,
 ) {
     var open by remember { mutableStateOf(false) }
-    Box {
-        Row(
-            Modifier
-                .clickable { open = true }
-                .padding(vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(value, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.width(4.dp))
-            Icon(
-                Icons.Filled.ArrowDropDown,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            options.forEach { option ->
-                DropdownMenuItem(
-                    text = { Text(option) },
-                    onClick = {
-                        open = false
-                        onPick(option)
-                    },
-                )
+
+    PrefRow(icon, title, summary, onClick = { open = true }, trailing = {
+        Box {
+            DropdownValue(value)
+            DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+                options.forEach { option ->
+                    DropdownMenuItem(
+                        text = { Text(option) },
+                        onClick = {
+                            open = false
+                            onPick(option)
+                        },
+                    )
+                }
             }
         }
-    }
+    })
 }
 
 /* ---------------------------------------------------------- 小控件 */

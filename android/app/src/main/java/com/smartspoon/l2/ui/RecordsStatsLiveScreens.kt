@@ -61,7 +61,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.smartspoon.l2.MainActivity
+import com.smartspoon.l2.MealRecord
 import com.smartspoon.l2.State
+import com.smartspoon.l2.Units
 import kotlin.math.floor
 import android.content.Context
 import android.content.Intent
@@ -82,6 +84,15 @@ import androidx.compose.material.icons.filled.BarChart
  */
 
 /* --------------------------------------------------- p.11 用餐记录 */
+
+/**
+ * 用餐记录里的一处时间。
+ *
+ * 优先用时间戳**现格式化**：这样「设置 → 杂项」里两个时间开关一改，这一页当即就变，
+ * 不需要重读数据库。没有时间戳的老数据（走服务器 bootstrap 那条路径）退回库里读出来的文本。
+ */
+private fun mealTime(millis: Long, fallback: String): String =
+    if (millis > 0L) Units.dateTime(millis) else fallback.ifBlank { "—" }
 
 /**
  * 用餐记录：顶部是「统计数据 / 排序」工具条，下面每条用餐记录一行。
@@ -144,11 +155,16 @@ fun RecordsScreen(a: MainActivity) {
                  * 合计与起止时间。ConfigRow 的标题没有 maxLines，长文本会自然折行，
                  * 所以「总口数 / 总重量 / 总热量」与「用餐时间 起 至 止」都能完整显示，
                  * 不会像副标题那样被截断成省略号。
+                 *
+                 * 重量与热量走 Units（跟着「设置 → 杂项」的单位走）；
+                 * 时间由 startedAt / endedAt 现格式化（跟着两个时间开关走），
+                 * 而不是用库里读出来时就算好的字符串 —— 那样改完设置这一页不会变。
                  */
                 ConfigRow(
-                    title = "总口数: ${record.bites} · 总重量: ${record.weight} g · " +
-                        "总热量: ${record.energy} kJ",
-                    subtitle = "用餐时间: ${record.start} 至 ${record.end}",
+                    title = "总口数: ${record.bites} · 总重量: ${Units.weight(record.weight)} · " +
+                        "总热量: ${Units.energy(record.energy)}",
+                    subtitle = "用餐时间: ${mealTime(record.startedAt, record.start)} 至 " +
+                        "${mealTime(record.endedAt, record.end)}",
                 )
             }
         }
@@ -235,6 +251,9 @@ fun StatsScreen(ctx: Context) {
  *
  * 旧版 selectBox 弹出的是系统 PopupMenu；这里用 MD3 的 DropdownMenu，
  * 选项写回 State 之后界面自动重组，不再需要旧版那次 `renderContentOnly()`。
+ *
+ * **整行可点**：`ConfigRow` 的 `onClick` 负责把列表打开，右侧那个值只负责显示，
+ * 自身不再处理点击 —— 否则点在值和点在行上会走两条不同的路径。
  */
 @Composable
 private fun SelectRow(
@@ -245,13 +264,12 @@ private fun SelectRow(
     onPick: (String) -> Unit,
 ) {
     var open by remember { mutableStateOf(false) }
-    ConfigRow(title, subtitle) {
+    ConfigRow(title, subtitle, onClick = { open = true }) {
         Box {
             Box(
                 Modifier
                     .clip(MaterialTheme.shapes.small)
                     .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-                    .clickable { open = true }
                     .padding(horizontal = 12.dp, vertical = 7.dp),
             ) {
                 Text("$value  ▾", fontSize = 15.sp)
@@ -485,12 +503,13 @@ fun LiveScreen(a: MealFlowHost) {
                         )
                     }
 
-                    LiveValueRow("当前勺中重量:", "${meal.spoonWeight} g")
-                    LiveValueRow("当前勺中热量:", a.energyText(meal.spoonEnergy))
+                    // 重量与热量一律走 Units，跟着「设置 → 杂项」的单位走
+                    LiveValueRow("当前勺中重量:", Units.weight(meal.spoonWeight.toDouble()))
+                    LiveValueRow("当前勺中热量:", Units.energy(meal.spoonEnergy))
                     Spacer(Modifier.height(20.dp))
                     LiveValueRow("已记录口数:", meal.bites.toString())
-                    LiveValueRow("已记录总重量:", "${meal.totalWeight} g")
-                    LiveValueRow("已记录总热量:", a.energyText(meal.totalEnergy))
+                    LiveValueRow("已记录总重量:", Units.weight(meal.totalWeight.toDouble()))
+                    LiveValueRow("已记录总热量:", Units.energy(meal.totalEnergy))
                 }
             }
         }
@@ -606,16 +625,20 @@ fun ResultScreen(a: MealFlowHost) {
 
         item { SectionTitle("本餐数据:") }
         item {
-            ResultValueRow("用餐时长:", result.duration) { a.editResultValue("duration") }
+            ResultValueRow("用餐时长:", "${result.minutes} 分钟") { a.editResultValue("duration") }
         }
         item {
-            ResultValueRow("已记录口数:", result.bites) { a.editResultValue("bites") }
+            ResultValueRow("已记录口数:", result.bites.toString()) { a.editResultValue("bites") }
         }
         item {
-            ResultValueRow("已记录总重量:", result.weight) { a.editResultValue("weight") }
+            ResultValueRow("已记录总重量:", Units.weight(result.weightGrams)) {
+                a.editResultValue("weight")
+            }
         }
         item {
-            ResultValueRow("已记录总热量:", result.energy) { a.editResultValue("energy") }
+            ResultValueRow("已记录总热量:", Units.energy(result.energyKj)) {
+                a.editResultValue("energy")
+            }
         }
 
         item { SectionTitle("以下数据为上述数据计算得到:") }
@@ -628,8 +651,8 @@ fun ResultScreen(a: MealFlowHost) {
                 modifier = Modifier.padding(start = 20.dp, top = 4.dp, bottom = 6.dp),
             )
         }
-        item { ResultValueRow("平均每口重量:", result.avgWeight) }
-        item { ResultValueRow("平均每口热量:", result.avgEnergy) }
+        item { ResultValueRow("平均每口重量:", Units.weight(result.avgWeightGrams)) }
+        item { ResultValueRow("平均每口热量:", Units.energy(result.avgEnergyKj)) }
 
         item {
             Row(

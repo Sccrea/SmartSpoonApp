@@ -304,26 +304,27 @@ object MealSession {
         val bites = currentBites.size
         val weight = currentBites.sumOf { it.weight }
         val energy = currentBites.sumOf { it.energy }
+        // 存**数值 + 基准单位**（分钟 / 口 / g / kJ），显示时由 Units 按当前设置换算
         State.result = MealResult(
             savedNo = (State.data?.records?.size ?: 0) + 1,
-            duration = "$minutes 分钟",
-            bites = bites.toString(),
-            weight = "${weight.toInt()} g",
-            energy = "${energy.toInt()} kJ",
-            avgWeight = "%.1f g".format(weight / bites),
-            avgEnergy = "%.1f kJ".format(energy / bites),
+            minutes = minutes,
+            bites = bites,
+            weightGrams = weight,
+            energyKj = energy,
+            avgWeightGrams = weight / bites,
+            avgEnergyKj = energy / bites,
         )
     }
 
     /** 结果页「完成」：把「修正数据」写回记录、重读本地库（回主界面由 `ResultActivity` 负责）。 */
     fun doneResult() {
-        // 把「修正数据」写回这条用餐记录
+        // 把「修正数据」写回这条用餐记录（现在存的就是基准单位的数值，不再需要从字符串里抠数字）
         if (currentMealId > 0) {
             db.updateMeal(
                 currentMealId,
-                State.result.bites.filter { it.isDigit() }.toIntOrNull() ?: currentBites.size,
-                State.result.weight.filter { it.isDigit() || it == '.' }.toDoubleOrNull() ?: 0.0,
-                State.result.energy.filter { it.isDigit() || it == '.' }.toDoubleOrNull() ?: 0.0,
+                State.result.bites,
+                State.result.weightGrams,
+                State.result.energyKj,
             )
         }
         currentBites.clear()

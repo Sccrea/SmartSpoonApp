@@ -4,10 +4,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
-import java.text.SimpleDateFormat
 import java.util.Calendar
-import java.util.Date
-import java.util.Locale
 
 /** 一次「口」记录。 */
 data class Bite(
@@ -29,7 +26,14 @@ class Store(context: Context) :
 
     companion object {
         const val DB_NAME = "smartspoon.db"
-        const val DB_VERSION = 1
+
+        /**
+         * v1：收藏时间以**格式化好的文本**存在 `dishes.favorite_at`，用餐起止时间在
+         *     `meals` 里本来就是时间戳，但读出来立刻格式化成字符串。
+         * v2：「时间显示年 / 时间显示秒」要真的生效，于是收藏时间也改存**时间戳**
+         *     （新增 `favorite_at_ms`），格式化全部推迟到显示的最后一刻（见 [Units]）。
+         */
+        const val DB_VERSION = 2
 
         /** 首次安装时写入的示例菜品（之后完全由用户增删改）。 */
         private val SEED_DISHES = listOf(
@@ -53,8 +57,6 @@ class Store(context: Context) :
         )
     }
 
-    private val dayFormat = SimpleDateFormat("yyyy年M月d日 HH:mm", Locale.CHINA)
-
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
             """
@@ -66,7 +68,8 @@ class Store(context: Context) :
               times INTEGER NOT NULL DEFAULT 0,
               emoji TEXT NOT NULL DEFAULT '🍽',
               favorite INTEGER NOT NULL DEFAULT 0,
-              favorite_at TEXT
+              favorite_at TEXT,
+              favorite_at_ms INTEGER
             )
             """.trimIndent()
         )
@@ -109,11 +112,34 @@ class Store(context: Context) :
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // 原型阶段直接重建，避免迁移逻辑
-        listOf("bites", "meals", "menu_items", "menus", "dishes").forEach {
-            db.execSQL("DROP TABLE IF EXISTS $it")
+        /*
+         * v1 → v2：收藏时间由「格式化文本」改成「时间戳」。
+         *
+         * 这里**只加一列再回填，绝不重建表** —— 旧版那种 `DROP TABLE` 会把用户自己加的菜品、
+         * 全部用餐记录、每一口明细一起抹掉，那是不可接受的。老行里 `favorite_at` 存的是
+         * 「2026年9月12日 22:43」，解析得回来就写进新列，解析不回来就留空（显示成「—」）。
+         */
+        if (oldVersion < 2) {
+            db.execSQL("ALTER TABLE dishes ADD COLUMN favorite_at_ms INTEGER")
+            val legacy = mutableListOf<Pair<Long, String>>()
+            db.rawQuery(
+                "SELECT id, favorite_at FROM dishes WHERE favorite = 1 AND favorite_at IS NOT NULL",
+                null,
+            ).use { cursor ->
+                while (cursor.moveToNext()) {
+                    legacy.add(cursor.getLong(0) to (cursor.getString(1) ?: ""))
+                }
+            }
+            legacy.forEach { (id, text) ->
+                val millis = Units.parseLegacyDateTime(text)
+                if (millis > 0L) {
+                    db.execSQL(
+                        "UPDATE dishes SET favorite_at_ms = ? WHERE id = ?",
+                        arrayOf(millis, id),
+                    )
+                }
+            }
         }
-        onCreate(db)
     }
 
     private fun seed(db: SQLiteDatabase) {
@@ -127,7 +153,7 @@ class Store(context: Context) :
                 put("times", 0)
                 put("emoji", rest.second)
                 put("favorite", if (index < 3) 1 else 0)
-                put("favorite_at", dayFormat.format(Date(now - index * 86_400_000L)))
+                put("favorite_at_ms", now - index * 86_400_000L)
             }
             dishIds[name] = db.insert("dishes", null, values)
         }
@@ -202,13 +228,24 @@ class Store(context: Context) :
         return list
     }
 
-    fun favorites(): Map<String, String> {
-        val map = mutableMapOf<String, String>()
+    /**
+     * 收藏的菜品 → 收藏时间戳（毫秒）。0 = 这一行没有可用的收藏时间（v1 的旧文本没解析出来）。
+     *
+     * 返回时间戳而不是格式化好的文本，「时间显示年 / 秒」才会跟着设置走。
+     */
+    fun favorites(): Map<String, Long> {
+        val map = mutableMapOf<String, Long>()
         readableDatabase.rawQuery(
-            "SELECT id, favorite_at FROM dishes WHERE favorite = 1", null
+            "SELECT id, favorite_at_ms, favorite_at FROM dishes WHERE favorite = 1", null
         ).use { cursor ->
             while (cursor.moveToNext()) {
-                map[cursor.getLong(0).toString()] = cursor.getString(1) ?: ""
+                val millis = if (cursor.isNull(1)) {
+                    // v1 升级上来的行：新列为空，退回解析老文本
+                    Units.parseLegacyDateTime(cursor.getString(2) ?: "")
+                } else {
+                    cursor.getLong(1)
+                }
+                map[cursor.getLong(0).toString()] = millis
             }
         }
         return map
@@ -216,8 +253,8 @@ class Store(context: Context) :
 
     fun toggleFavorite(dishId: String, favorite: Boolean) {
         writableDatabase.execSQL(
-            "UPDATE dishes SET favorite = ?, favorite_at = ? WHERE id = ?",
-            arrayOf(if (favorite) 1 else 0, dayFormat.format(Date()), dishId),
+            "UPDATE dishes SET favorite = ?, favorite_at_ms = ? WHERE id = ?",
+            arrayOf(if (favorite) 1 else 0, if (favorite) System.currentTimeMillis() else null, dishId),
         )
     }
 
@@ -357,10 +394,12 @@ class Store(context: Context) :
                         menu = cursor.getString(1),
                         foods = biteDishes(id),
                         bites = cursor.getInt(4),
-                        weight = cursor.getDouble(5).toInt(),
-                        energy = cursor.getDouble(6).toInt(),
-                        start = dayFormat.format(Date(cursor.getLong(2))),
-                        end = dayFormat.format(Date(cursor.getLong(3))),
+                        // 列是 REAL：这里读成 Double，别在小数位上提前取整 ——
+                        // 结果页刚算出的 122.99 kJ 与记录列表里的 122 kJ 会因此对不上
+                        weight = cursor.getDouble(5),
+                        energy = cursor.getDouble(6),
+                        start = Units.dateTime(cursor.getLong(2)),
+                        end = Units.dateTime(cursor.getLong(3)),
                         id = id,
                         endedAt = cursor.getLong(3),
                         startedAt = cursor.getLong(2),
@@ -427,28 +466,34 @@ class Store(context: Context) :
         return listOf(
             "总用餐时间" to formatDuration(minutes),
             "总记录口数" to bites.toString(),
-            "总摄入重量" to "${weight.toInt()} g",
-            "总摄入能量" to "${energy.toInt()} kJ",
+            "总摄入重量" to Units.weight(weight),
+            "总摄入能量" to Units.energy(energy),
             "总餐数" to count.toString(),
         )
     }
 
+    /**
+     * 折线图的原始数据。库里的能量按 kJ 存，这里**就按当前热量单位换算好**再交出去 ——
+     * 数值、刻度、轴标签必须一起换，否则选了 kcal 之后图上还写着「摄入能量/kJ」。
+     */
     fun chartData(): ChartData {
         val points = mutableListOf<ChartPoint>()
-        val format = SimpleDateFormat("yyyy/M/d", Locale.CHINA)
         readableDatabase.rawQuery(
             "SELECT ended_at, energy FROM meals ORDER BY ended_at", null
         ).use { cursor ->
             while (cursor.moveToNext()) {
-                points.add(ChartPoint(format.format(Date(cursor.getLong(0))), cursor.getDouble(1).toInt()))
+                val energy = Units.energyValue(cursor.getDouble(1))
+                points.add(ChartPoint(Units.date(cursor.getLong(0)), energy.toInt()))
             }
         }
         val max = points.maxOfOrNull { it.y } ?: 0
-        val step = maxOf(200, ((max + 199) / 200) * 200)
+        // 刻度步长跟着单位走：kcal 的数值比 kJ 小 4 倍多，还用 200 一档会把图压成一条线
+        val unit = if (State.energyUnit == "kcal") 50 else 200
+        val step = maxOf(unit, ((max + unit - 1) / unit) * unit)
         val ticks = (0..6).map { it * step / 6 }
         return ChartData(
             xLabel = "用餐完成时间",
-            yLabel = "摄入能量/kJ",
+            yLabel = Units.energyAxisLabel(),
             yTicks = ticks,
             xTicks = points.map { it.x },
             points = points,

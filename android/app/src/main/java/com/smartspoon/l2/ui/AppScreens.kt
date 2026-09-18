@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.smartspoon.l2.MainActivity
 import com.smartspoon.l2.State
+import com.smartspoon.l2.Units
 
 /*
  * 列表页的排布遵循 Gramophone 的做法：**内容整体在可折叠的大标题栏下滚动**，
@@ -232,6 +233,13 @@ private fun SortChips() {
 
 /* --------------------------------------------------- p.10 收藏食物 */
 
+/**
+ * 收藏时间。存的是时间戳，`0` 表示这一行没有可用的时间
+ * （v1 的库把时间存成格式化文本，升级时没解析出来的那些行）。
+ */
+private fun favoriteText(millis: Long?): String =
+    if (millis == null || millis <= 0L) "—" else Units.dateTime(millis)
+
 @Composable
 fun FavoritesScreen(a: MainActivity) {
     val favorites = State.data?.foods?.filter {
@@ -270,7 +278,8 @@ fun FavoritesScreen(a: MainActivity) {
         shown.forEach { food ->
             ListRow(
                 title = food.name,
-                subtitle = "收藏时间: " + (State.data?.favoriteTimes?.get(food.id) ?: ""),
+                // 收藏时间这里存的是时间戳，格式化推迟到这一刻 —— 「时间显示年 / 秒」才跟着设置走
+                subtitle = "收藏时间: " + favoriteText(State.data?.favoriteTimes?.get(food.id)),
                 leading = { CoverBox { Text(State.emojiFor(food), fontSize = 26.sp) } },
                 trailing = {
                     OutlinedButton(onClick = { a.handleDishAction(food, DishAction.Edit) }) {

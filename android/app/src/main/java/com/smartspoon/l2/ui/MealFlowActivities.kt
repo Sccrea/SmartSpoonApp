@@ -64,9 +64,6 @@ interface MealFlowHost {
 
     fun toast(message: String)
 
-    /** kj / kcal 的显示（「杂项 → 热量单位」决定）。 */
-    fun energyText(value: Double): String
-
     /* 选择本餐菜单 */
     fun pickMenu(menu: MenuDef)
 
@@ -118,8 +115,6 @@ abstract class BaseMealActivity : BasePageActivity(), MealFlowHost, DialogAction
     /* --------------------------------------------------------- MealFlowHost */
 
     override fun toast(message: String) = AppCore.toast(message)
-
-    override fun energyText(value: Double): String = AppCore.energyText(value)
 
     override fun pickMenu(menu: MenuDef) = AppCore.pickMenu(menu)
 

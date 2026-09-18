@@ -1,4 +1,4 @@
-﻿package com.smartspoon.l2.ui
+package com.smartspoon.l2.ui
 
 import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
@@ -135,21 +135,18 @@ fun DeviceSettingsScreen(a: SettingsHost) {
             ) { State.autoConnect = it }
         }
 
-        // 作用域：对应旧版右对齐的 selectBox（已保存的智味勺 / 附近的智味勺）
+        // 作用域：对应旧版右对齐的 selectBox（已保存的智味勺 / 附近的智味勺）。
+        // 整行可点，点标题也能把列表弹出来。
         item {
-            PrefRow(
+            PrefSelectRow(
                 icon = Icons.Filled.Person,
                 title = "设备范围",
                 summary = "在哪些智味勺里查找",
-                trailing = {
-                    PrefDropdown(
-                        value = if (State.deviceScope == "nearby") "附近的智味勺" else "已保存的智味勺",
-                        options = listOf("已保存的智味勺", "附近的智味勺"),
-                    ) { picked ->
-                        State.deviceScope = if (picked == "附近的智味勺") "nearby" else "saved"
-                    }
-                },
-            )
+                value = if (State.deviceScope == "nearby") "附近的智味勺" else "已保存的智味勺",
+                options = listOf("已保存的智味勺", "附近的智味勺"),
+            ) { picked ->
+                State.deviceScope = if (picked == "附近的智味勺") "nearby" else "saved"
+            }
         }
 
         if (devices.isEmpty()) {
@@ -270,7 +267,16 @@ private fun MenuFoodLine(food: Food) {
 
 /* ------------------------------------------------------------ p.17 杂项 */
 
-/** 杂项：时间显示的两个开关、热量/重量单位、服务器地址与导入。 */
+/**
+ * 杂项：时间显示的两个开关、热量/重量单位、服务器地址与导入。
+ *
+ * 这里的四项设置都是**真的生效**的：
+ * - 两个时间开关决定 [Units.dateTime] 的格式串（用餐记录、记录详情、收藏时间都走它）；
+ * - 两个单位决定 [Units] 的换算（用餐中读数、用餐结果、用餐记录、统计、折线图、菜品密度…）。
+ *
+ * 其中「统计数据汇总」与折线图的文字是读库时就算好放进 [State.data] 的，
+ * 所以改完这几项顺手重读一次本地库（[SettingsHost.loadFromStore]），否则那两页会停在旧单位。
+ */
 @Composable
 fun MiscScreen(a: SettingsHost) {
     LazyColumn(
@@ -288,6 +294,7 @@ fun MiscScreen(a: SettingsHost) {
             ) {
                 State.showYear = it
                 a.persistSettings()
+                a.loadFromStore()
             }
         }
 
@@ -300,37 +307,38 @@ fun MiscScreen(a: SettingsHost) {
             ) {
                 State.showSecond = it
                 a.persistSettings()
+                a.loadFromStore()
             }
         }
 
         item { PrefCategory("单位") }
 
         item {
-            PrefRow(
+            PrefSelectRow(
                 icon = Icons.Filled.Tune,
                 title = "热量单位",
                 summary = "更改食物热量显示的单位",
-                trailing = {
-                    PrefDropdown(State.energyUnit, listOf("kJ", "kcal")) {
-                        State.energyUnit = it
-                        a.persistSettings()
-                    }
-                },
-            )
+                value = State.energyUnit,
+                options = listOf("kJ", "kcal"),
+            ) {
+                State.energyUnit = it
+                a.persistSettings()
+                a.loadFromStore()
+            }
         }
 
         item {
-            PrefRow(
+            PrefSelectRow(
                 icon = Icons.Filled.Tune,
                 title = "重量单位",
                 summary = "更改食物重量显示的单位",
-                trailing = {
-                    PrefDropdown(State.weightUnit, listOf("g", "kg", "两")) {
-                        State.weightUnit = it
-                        a.persistSettings()
-                    }
-                },
-            )
+                value = State.weightUnit,
+                options = listOf("g", "kg", "两"),
+            ) {
+                State.weightUnit = it
+                a.persistSettings()
+                a.loadFromStore()
+            }
         }
 
         item { PrefCategory("服务器") }
@@ -416,7 +424,7 @@ fun AccountScreen(a: SettingsHost) {
         item {
             PrefRow(Icons.Filled.FileDownload, "数据导出", "导出用餐记录为文件", trailing = { ValueTail("CSV") })
         }
-        item { PrefRow(Icons.Filled.Info, "关于智味勺", "版本 1.0.0（Compose + Material 3）") }
+        item { PrefRow(Icons.Filled.Info, "关于智味勺", "版本 0.0.1（Compose + Material 3）") }
     }
 }
 

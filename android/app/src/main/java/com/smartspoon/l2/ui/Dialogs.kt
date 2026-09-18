@@ -50,6 +50,7 @@ import com.smartspoon.l2.DialogActions
 import com.smartspoon.l2.Bite
 import com.smartspoon.l2.MealRecord
 import com.smartspoon.l2.State
+import com.smartspoon.l2.Units
 
 /*
  * 弹窗（p.04~p.06 连接智味勺 / 用餐提醒 / 服务器地址，识别结果，修正数据，菜品增删改…）。
@@ -126,7 +127,11 @@ private fun ConnectDialog(d: DialogActions, picking: Boolean) {
 
             DialogLine("已连接:", 14.sp, topPadding = 16.dp)
             DialogLine(State.connectedDevice()?.name ?: "未连接", 19.sp, bold = true)
-            DialogLine("当前食物重量: ${State.meal.spoonWeight}g", 14.sp, topPadding = 12.dp)
+            DialogLine(
+                "当前食物重量: ${Units.weight(State.meal.spoonWeight.toDouble())}",
+                14.sp,
+                topPadding = 12.dp,
+            )
         } else {
             DialogLine("当前已连接:", 14.sp, topPadding = 8.dp)
             DialogLine(State.connectedDevice()?.name ?: "未连接", 19.sp, bold = true)
@@ -135,7 +140,7 @@ private fun ConnectDialog(d: DialogActions, picking: Boolean) {
                 12.5.sp,
                 muted = true,
             )
-            DialogLine("当前食物重量: ${State.meal.spoonWeight}g", 14.sp, topPadding = 18.dp)
+            DialogLine("当前食物重量: ${Units.weight(State.meal.spoonWeight.toDouble())}", 14.sp, topPadding = 18.dp)
         }
 
         Row(
@@ -223,18 +228,28 @@ private fun ServerDialog(d: DialogActions) {
 
 @Composable
 private fun EditResultDialog(d: DialogActions, field: String) {
-    val current = when (field) {
-        "duration" -> State.result.duration
-        "bites" -> State.result.bites
-        "weight" -> State.result.weight
-        else -> State.result.energy
+    /*
+     * 输入框里是**当前单位下的数值**：热量按 kJ / kcal，重量按 g / kg / 两。
+     * 保存在 AppCore.saveResultField 里换算回基准单位（kJ / g），
+     * 所以这里改了单位之后再打开这个弹窗，预填的数字也跟着换。
+     */
+    val number = when (field) {
+        "duration" -> State.result.minutes.toString()
+        "bites" -> State.result.bites.toString()
+        "weight" -> Units.weightNumber(State.result.weightGrams)
+        else -> Units.energyNumber(State.result.energyKj)
     }
-    // 预填值与旧版一致：只留下数字和小数点
-    var text by remember(field) { mutableStateOf(current.replace(Regex("[^0-9.]"), "")) }
+    val unitLabel = when (field) {
+        "duration" -> "分钟"
+        "bites" -> "口"
+        "weight" -> Units.weightUnitLabel()
+        else -> Units.energyUnitLabel()
+    }
+    var text by remember(field, number) { mutableStateOf(number) }
 
     ModalCard(onDismiss = { d.closeOverlay() }) {
         DialogTitle("修正数据")
-        DialogLine("当前值: $current", 13.sp, muted = true)
+        DialogLine("当前值: $number $unitLabel", 13.sp, muted = true)
         OutlinedTextField(
             value = text,
             onValueChange = { text = it },
@@ -275,7 +290,7 @@ private fun MealDetailDialog(d: DialogActions, record: MealRecord) {
         text = {
             Column {
                 Text(
-                    "${record.start} 起",
+                    "${if (record.startedAt > 0L) Units.dateTime(record.startedAt) else record.start} 起",
                     fontSize = 12.5.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(bottom = 4.dp),
@@ -598,7 +613,7 @@ private fun BiteLines(bites: List<Bite>, emptyText: String) {
     Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState())) {
         bites.forEachIndexed { index, bite ->
             Text(
-                "第 ${index + 1} 口   ${bite.dish}   ${bite.weight.toInt()} g · ${bite.energy.toInt()} kJ",
+                "第 ${index + 1} 口   ${bite.dish}   ${Units.weight(bite.weight)} · ${Units.energy(bite.energy)}",
                 fontSize = 14.sp,
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(vertical = 3.dp),

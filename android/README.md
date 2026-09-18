@@ -27,8 +27,8 @@ Flask 服务器（只有 JSON 接口，没有网页）
 ```
 
 服务器地址在 **设置 → 杂项 → 服务器地址** 里修改（也可以「重新读取菜品信息」立刻重载）。
-应用启动时会依次探测：已保存的地址 → `http://10.0.2.2:5000` → `http://192.168.14.128:5000`，
-第一个 `/api/health` 返回 200 的地址即被采用。
+默认地址是 **`https://sccrea64.cc.cd:16384`**（`State.DEFAULT_SERVER`，见 `Data.kt`）；
+启动时会依次探测：已保存的地址 → 默认地址，第一个 `/api/health` 返回 200 的即被采用。
 
 ## 源码结构
 
@@ -40,10 +40,35 @@ Flask 服务器（只有 JSON 接口，没有网页）
 | `ui/AppScreens.kt` | 快速开始 / 选择本餐菜单 / 自定义本餐菜单 / 收藏食物 |
 | `ui/RecordsStatsLiveScreens.kt` | 用餐记录 / 统计数据（Compose `Canvas` 折线图与柱状图）/ 用餐中 / 用餐结果 |
 | `ui/SettingsScreens.kt` | 设置 / 设备管理 / 菜单 / 杂项 / 账户设置 |
-| `MainActivity.kt` | 只负责 Activity 该管的事：数据加载与探测、相机与权限、勺子数据轮询、用餐计时、本地库写入 |
+| `MainActivity.kt` | 主界面（四个标签页）的宿主；其余页面都是独立 Activity，所以它只剩导航、弹窗与本地库读取 |
+| `AppCore.kt` | 进程级单例：**唯一**一份 `Store`、提示出口、重读本地库、服务器探测与导入、菜品增删改与弹窗动作。挂在 `Application` 上，与任何 Activity 的生死无关 |
+| `Units.kt` | **单位换算与格式化的唯一出口**：热量的 kJ↔kcal、重量的 g↔kg↔两、时间戳→文本（受「时间显示年 / 秒」控制） |
+| `MealSession.kt` | 一次用餐的会话状态：每一口、计时、设备轮询、餐次生命周期。进程级，不持有 Context |
+| `ui/MealFlowActivities.kt` | 用餐流程的四个独立 Activity（选择本餐菜单 / 自定义本餐菜单 / 用餐中 / 用餐结果）+ `MealFlowHost` 接口 + 底部托盘 |
+| `ui/PageShell.kt` | 「一页 = 自己的标题栏 + 内容」的公共外壳（`BasePageActivity`），设置子页与用餐流程共用 |
+| `ui/SettingsActivities.kt` | 设置四个子页 + 统计数据（独立 Activity）与 `SettingsHost` |
+| `PhotoRecognizer.kt` | 拍照 / 选图 / 上传识别，宿主持有一份 |
 | `Data.kt` | 数据模型、`org.json` 解析、`HttpURLConnection` 客户端、全局状态 `State`（**字段都是 Compose 可观察属性**） |
 | `Store.kt` | 本地 SQLite：菜品 / 菜单 / 用餐记录 / 每一口，离线可用 |
 | `ShotProvider.kt` | 相机写文件用的极简 `ContentProvider`（替代 AndroidX FileProvider） |
+
+### 单位与时间显示是真的生效的
+
+「设置 → 杂项」里那四项（时间显示年 / 时间显示秒 / 热量单位 / 重量单位）全部落到 `Units.kt`：
+
+- **内部只存基准单位** —— 热量存 kJ、重量存 g、时间存毫秒时间戳（`dishes.favorite_at_ms`、`meals.started_at/ended_at`）；
+- **只在显示的那一刻换算** —— 界面、弹窗、统计、折线图都调 `Units`，不再各自拼 `"${value} kJ"`。
+
+所以改单位/开关，所有位置下一帧就跟着变；只有「统计数据汇总」与折线图的文字是读库时算好的，
+设置页改完会顺手重读一次本地库。数据库 v1 → v2 只做**加列 + 回填**（老的 `favorite_at` 文本解析成时间戳），
+不会重建表、不丢数据。
+
+### 设置行的交互约定
+
+**整行可点**：开关行点标题 / 说明 / 开关任意位置都切换；下拉选择行点标题也能把列表弹出来
+（`ui/Components.kt` 的 `PrefSwitchRow` / `SwitchRow` / `PrefSelectRow`，
+以及统计数据页的 `SelectRow`）。开关自身保留 `onCheckedChange`，Compose 的子节点点击不会向上冒泡，
+所以点开关只会切换一次，选中态也照旧留在无障碍树里。
 
 ### 状态是唯一的真相来源（迁移的关键设计）
 

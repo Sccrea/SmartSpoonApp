@@ -10,6 +10,8 @@ import org.json.JSONObject
 import java.io.BufferedReader
 import java.net.HttpURLConnection
 import java.net.URL
+import java.text.SimpleDateFormat
+import java.util.Locale
 
 /* ------------------------------------------------------------------ 模型 */
 
@@ -30,8 +32,10 @@ data class MealRecord(
     val menu: String,
     val foods: List<String>,
     val bites: Int,
-    val weight: Int,
-    val energy: Int,
+    /** 基准单位 g（库里的列本来就是 REAL，之前读成 Int 会把小数抹掉）。 */
+    val weight: Double,
+    /** 基准单位 kJ（同上）。 */
+    val energy: Double,
     val start: String,
     val end: String,
     val id: Long = 0,
@@ -70,23 +74,29 @@ data class ChartData(
     val points: List<ChartPoint>,
 )
 
-/** 用餐结果页可修正的数据（写成 Compose 可观察，编辑后界面即时更新）。 */
+/**
+ * 用餐结果页可修正的数据。
+ *
+ * 这里存的是**数值 + 基准单位**（分钟 / 口 / g / kJ），不是拼好的字符串 ——
+ * 显示时由 [Units] 按「设置 → 杂项」里的单位现算。以前存的是 `"359 g"` 这种成品字符串，
+ * 于是改了重量单位，结果页上那几行还是老单位。
+ */
 class MealResult(
     savedNo: Int = 4,
-    duration: String = "49 分钟",
-    bites: String = "25",
-    weight: String = "359 g",
-    energy: String = "1653 kJ",
-    avgWeight: String = "14.4 g",
-    avgEnergy: String = "66.1 kJ",
+    minutes: Int = 49,
+    bites: Int = 25,
+    weightGrams: Double = 359.0,
+    energyKj: Double = 1653.0,
+    avgWeightGrams: Double = 14.4,
+    avgEnergyKj: Double = 66.1,
 ) {
     var savedNo by mutableStateOf(savedNo)
-    var duration by mutableStateOf(duration)
+    var minutes by mutableStateOf(minutes)
     var bites by mutableStateOf(bites)
-    var weight by mutableStateOf(weight)
-    var energy by mutableStateOf(energy)
-    var avgWeight by mutableStateOf(avgWeight)
-    var avgEnergy by mutableStateOf(avgEnergy)
+    var weightGrams by mutableStateOf(weightGrams)
+    var energyKj by mutableStateOf(energyKj)
+    var avgWeightGrams by mutableStateOf(avgWeightGrams)
+    var avgEnergyKj by mutableStateOf(avgEnergyKj)
 }
 
 data class Bootstrap(
@@ -94,7 +104,7 @@ data class Bootstrap(
     val menus: MutableList<MenuDef>,
     val categories: List<String>,
     val folders: List<FolderDef>,
-    val favoriteTimes: Map<String, String>,
+    val favoriteTimes: Map<String, Long>,
     val records: List<MealRecord>,
     val stats: List<Pair<String, String>>,
     val chart: ChartData,
@@ -109,6 +119,18 @@ data class Bootstrap(
 
 private fun JSONObject.str(key: String, fallback: String = ""): String =
     if (isNull(key)) fallback else optString(key, fallback)
+
+/**
+ * 取字符串里的第一个数字。
+ *
+ * 服务器（老的 View 版后端）把结果字段发成 `"359 g"` / `"1653 kJ"` / `"49 分钟"` 这种
+ * 已经拼好的文本，而本应用内部只存基准单位的数值，所以这里把数字抠出来。
+ */
+private fun firstNumber(text: String, fallback: Double): Double =
+    Regex("-?[0-9]+(?:\\.[0-9]+)?").find(text)?.value?.toDoubleOrNull() ?: fallback
+
+/** 把老后端格式化过的中文时间文本尽量还原成时间戳；认不出来返回 0（界面显示「—」）。 */
+private fun parseLegacyTime(text: String): Long = Units.parseLegacyDateTime(text)
 
 fun parseFood(o: JSONObject) = Food(
     id = o.str("id"),
@@ -153,8 +175,8 @@ fun parseBootstrap(o: JSONObject): Bootstrap {
                     menu = r.str("menu"),
                     foods = stringList(r.optJSONArray("foods")),
                     bites = r.optInt("bites"),
-                    weight = r.optInt("weight"),
-                    energy = r.optInt("energy"),
+                    weight = r.optDouble("weight", 0.0),
+                    energy = r.optDouble("energy", 0.0),
                     start = r.str("start"),
                     end = r.str("end"),
                 )
@@ -181,9 +203,11 @@ fun parseBootstrap(o: JSONObject): Bootstrap {
             )
         }
     }
-    val favoriteTimes = mutableMapOf<String, String>()
+    val favoriteTimes = mutableMapOf<String, Long>()
     o.optJSONObject("favoriteTimes")?.let { t ->
-        for (key in t.keys()) favoriteTimes[key] = t.str(key)
+        // 服务器发来的是**格式化好的文本**（老后端的字段），这里尽量还原成时间戳；
+        // 认不出来就记 0，界面会显示成「—」。本地库那条路径不受影响。
+        for (key in t.keys()) favoriteTimes[key] = parseLegacyTime(t.str(key))
     }
     val chartJson = o.optJSONObject("chart") ?: JSONObject()
     val yTicks = mutableListOf<Int>()
@@ -216,12 +240,12 @@ fun parseBootstrap(o: JSONObject): Bootstrap {
         preselect = stringList(o.optJSONArray("preselect")),
         result = MealResult(
             savedNo = resultJson.optInt("savedNo", 4),
-            duration = resultJson.str("duration", "49 分钟"),
-            bites = resultJson.str("bites", "25"),
-            weight = resultJson.str("weight", "359 g"),
-            energy = resultJson.str("energy", "1653 kJ"),
-            avgWeight = resultJson.str("avgWeight", "14.4 g"),
-            avgEnergy = resultJson.str("avgEnergy", "66.1 kJ"),
+            minutes = firstNumber(resultJson.str("duration", "49"), 49.0).toInt(),
+            bites = firstNumber(resultJson.str("bites", "25"), 25.0).toInt(),
+            weightGrams = firstNumber(resultJson.str("weight", "359"), 359.0),
+            energyKj = firstNumber(resultJson.str("energy", "1653"), 1653.0),
+            avgWeightGrams = firstNumber(resultJson.str("avgWeight", "14.4"), 14.4),
+            avgEnergyKj = firstNumber(resultJson.str("avgEnergy", "66.1"), 66.1),
         ),
         dishesUpdated = o.str("dishesUpdated"),
     )
@@ -424,8 +448,8 @@ class MealState {
 object State {
     private const val PREFS = "smartspoon"
     private const val KEY_SERVER = "server_url"
-    const val DEFAULT_SERVER = "http://10.0.2.2:5000"
-    val FALLBACK_SERVERS = listOf("http://10.0.2.2:5000", "http://192.168.14.128:5000")
+    const val DEFAULT_SERVER = "https://sccrea64.cc.cd:16384"
+    val FALLBACK_SERVERS = listOf("https://sccrea64.cc.cd:16384")
 
     /*
      * 下面所有可变字段都用 Compose 的 `mutableStateOf` 承载。

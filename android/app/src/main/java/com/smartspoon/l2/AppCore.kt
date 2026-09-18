@@ -180,10 +180,6 @@ object AppCore {
 
     /* -------------------------------------------------------------- 小工具 */
 
-    fun energyText(value: Double): String =
-        if (State.energyUnit == "kJ") "${Math.round(value * 10) / 10.0} kJ"
-        else "${Math.round(value / 4.184)} kcal"
-
     /** 只翻转选中状态（加菜页 / 托盘共用）。 */
     fun toggleFood(id: String): Boolean =
         if (State.selected.contains(id)) {
@@ -312,22 +308,20 @@ object AppCore {
     }
 
     /**
-     * 修正数据弹窗的「保存」：按字段把输入写回 [State.result]（单位与旧版一致）。
+     * 修正数据弹窗的「保存」。
+     *
+     * 输入框里填的是**当前单位下的数值**（kg / 两、kcal…），这里换算回基准单位
+     * （分钟 / 口 / g / kJ）再存 —— 所以改完单位，结果页那几行会跟着换，数值不会错。
      * 返回要提示的文字。
      */
     fun saveResultField(field: String, value: String): String {
-        val text = value.trim()
-        val unit = when (field) {
-            "duration" -> " 分钟"
-            "bites" -> ""
-            "weight" -> " g"
-            else -> " kJ"
-        }
+        val number = value.trim().toDoubleOrNull()
+            ?: return "请输入数字"
         when (field) {
-            "duration" -> State.result.duration = text + unit
-            "bites" -> State.result.bites = text
-            "weight" -> State.result.weight = text + unit
-            else -> State.result.energy = text + unit
+            "duration" -> State.result.minutes = number.toInt()
+            "bites" -> State.result.bites = number.toInt()
+            "weight" -> State.result.weightGrams = Units.toGrams(number)
+            else -> State.result.energyKj = Units.toKj(number)
         }
         closeOverlay()
         return "已更新"
