@@ -9,7 +9,7 @@ Large collapsing top app bar、MD3 列表行与底部 NavigationBar。
 | 项 | 值 |
 | --- | --- |
 | 包名 | `com.smartspoon.l2` |
-| 版本 | 0.0.1（versionCode 1） |
+| 版本 | 0.0.2（versionCode 2） |
 | minSdk / targetSdk | 24 / 35 |
 | 入口 | `com.smartspoon.l2.MainActivity` |
 | 产物 | `app/build/outputs/apk/release/app-release.apk`（发布版）/ `...\debug\app-debug.apk`（调试版） |

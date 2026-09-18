@@ -6,10 +6,15 @@ plugins {
 android {
     namespace = "com.smartspoon.l2"
     compileSdk = 35
-    defaultConfig { applicationId = "com.smartspoon.l2"; minSdk = 24; targetSdk = 35; versionCode = 1; versionName = "0.0.1" }
+    defaultConfig { applicationId = "com.smartspoon.l2"; minSdk = 24; targetSdk = 35; versionCode = 2; versionName = "0.0.2" }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     kotlinOptions { jvmTarget = "17" }
-    buildFeatures { compose = true }
+    buildFeatures {
+        compose = true
+        // 让「设置 → 账户设置 → 关于智味勺」直接读 BuildConfig.VERSION_NAME，
+        // 版本号就只有 defaultConfig 这一处，不会再出现"界面写着旧版本号"的陈旧文案
+        buildConfig = true
+    }
 
     // 沿用项目自带的 debug.keystore（旧的 build.py 管线也是用它签的）：
     // 签名一致，`adb install -r` 才能就地覆盖升级，不会因为签名不符要求先卸载，

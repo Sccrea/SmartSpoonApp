@@ -36,6 +36,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.smartspoon.l2.BuildConfig
 import com.smartspoon.l2.Device
 import com.smartspoon.l2.Food
 import com.smartspoon.l2.MainActivity
@@ -424,7 +425,15 @@ fun AccountScreen(a: SettingsHost) {
         item {
             PrefRow(Icons.Filled.FileDownload, "数据导出", "导出用餐记录为文件", trailing = { ValueTail("CSV") })
         }
-        item { PrefRow(Icons.Filled.Info, "关于智味勺", "版本 0.0.1（Compose + Material 3）") }
+        // 版本号取自 BuildConfig：只有 build.gradle.kts 的 defaultConfig 一处定义，
+        // 不会再出现"界面上写着旧版本号"这种陈旧文案。
+        item {
+            PrefRow(
+                Icons.Filled.Info,
+                "关于智味勺",
+                "版本 ${BuildConfig.VERSION_NAME}（Compose + Material 3）",
+            )
+        }
     }
 }
 
