@@ -314,7 +314,12 @@ private fun DishEditorDialog(d: DialogActions, foodId: String?) {
     // 编辑时按 id 现读，避免拿着可能已经被替换掉的 Food 对象
     val food = State.food(foodId)
     var name by remember(foodId) { mutableStateOf(food?.name ?: "") }
-    var density by remember(foodId) { mutableStateOf(food?.density?.toString() ?: "2.0") }
+    /*
+     * 输入框里填的是**当前单位下的密度** —— 单位由「设置 → 杂项」的热量单位与重量单位共同决定
+     * （`kJ/g`、`kcal/kg`、`kJ/两`…）。库里的基准一直是「每克多少 kJ」，
+     * 所以预填时换算出来、保存时用 Units.toDensity 换算回去。
+     */
+    var density by remember(foodId) { mutableStateOf(Units.densityNumber(food?.density ?: 2.0)) }
     var category by remember(foodId) { mutableStateOf(food?.category ?: "肉类") }
 
     ModalCard(onDismiss = { d.closeOverlay() }) {
@@ -329,12 +334,12 @@ private fun DishEditorDialog(d: DialogActions, foodId: String?) {
             modifier = Modifier.fillMaxWidth(),
         )
 
-        FieldLabel("能量密度 (kJ/g)", topPadding = 10.dp)
+        FieldLabel("能量密度 (${Units.densityUnitLabel()})", topPadding = 10.dp)
         OutlinedTextField(
             value = density,
             onValueChange = { density = it },
             singleLine = true,
-            placeholder = { Text("能量密度 kJ/g") },
+            placeholder = { Text("能量密度 ${Units.densityUnitLabel()}") },
             // 旧版这一项是数字键盘（TYPE_CLASS_NUMBER | TYPE_NUMBER_FLAG_DECIMAL）
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             modifier = Modifier.fillMaxWidth(),
@@ -347,8 +352,22 @@ private fun DishEditorDialog(d: DialogActions, foodId: String?) {
             TextButton(onClick = { d.closeOverlay() }) { Text("取消") }
             TextButton(
                 onClick = {
-                    // 解析与旧版一致：解析不出来就退回 2.0，空名字由 MainActivity 提示
-                    d.saveDishFromEditor(foodId, name, category, density.toDoubleOrNull() ?: 2.0)
+                    /*
+                     * 存进库的始终是基准单位 kJ/g。
+                     *
+                     * 用户**没动过这一栏**（文本与预填的一模一样）时，直接把原值传回去，
+                     * 不走「显示 → 解析 → 换算」那条路：预填的字符串按当前单位四舍五入过，
+                     * 换算回来会有极小漂移（8.2 kJ/g 显示成 98kcal/两，再换回去是 8.1998），
+                     * 每次打开又保存都磨掉一点。改过才按用户输入换算。
+                     */
+                    val parsed = density.toDoubleOrNull() ?: Units.densityValue(2.0)
+                    val canonical =
+                        if (food != null && Units.densityNumber(food.density) == density) {
+                            food.density
+                        } else {
+                            Units.toDensity(parsed)
+                        }
+                    d.saveDishFromEditor(foodId, name, category, canonical)
                 },
             ) { Text("保存") }
         }

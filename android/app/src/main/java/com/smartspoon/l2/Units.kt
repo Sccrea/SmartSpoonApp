@@ -80,12 +80,47 @@ object Units {
 
     /* -------------------------------------------------------- 能量密度 */
 
+    /** 当前的重量单位相当于多少克：g=1、kg=1000、两=50。 */
+    private fun gramsPerWeightUnit(): Double = when (State.weightUnit) {
+        "kg" -> 1000.0
+        "两" -> GRAMS_PER_LIANG
+        else -> 1.0
+    }
+
     /**
-     * 菜品行里的「能量密度」。密度的定义是「每克含多少能量」（kJ/g），
-     * 所以重量单位不参与换算，只有热量单位要转。
+     * 能量密度：库里的基准是「每克含多少 kJ」。
+     *
+     * 展示时**热量单位与重量单位都要换算** —— 选了 kg 就该显示成 `kcal/kg` 或 `kJ/kg`，
+     * 选了「两」就是 `kJ/两`；而且**数值必须跟着一起变**（1 kJ/g = 1000 kJ/kg = 50 kJ/两），
+     * 只把标签换个字就成了假数据。
+     *
+     * （早先这里只换热量单位、把 `/g` 写死，理由是"密度按克定义"；
+     *   但用户在设置里选了重量单位，这一行却仍写 g，看起来就是设置没生效。）
      */
-    fun density(kjPerGram: Double): String =
-        "${"%.2f".format(Locale.US, energyValue(kjPerGram))}${energyUnitLabel()}/g"
+    fun densityValue(kjPerGram: Double): Double =
+        energyValue(kjPerGram) * gramsPerWeightUnit()
+
+    /** 当前显示单位下的密度数值 → 基准单位 kJ/g（编辑菜品时把输入写回库）。 */
+    fun toDensity(display: Double): Double =
+        toKj(display) / gramsPerWeightUnit()
+
+    fun densityUnitLabel(): String = "${energyUnitLabel()}/${weightUnitLabel()}"
+
+    /**
+     * 每克时保留两位小数（沿用旧版的 `8.20`）；
+     * 换成 kg / 两 之后数值大得多（×1000 / ×50），留一位就够，不然一行全是零头。
+     */
+    fun densityNumber(kjPerGram: Double): String {
+        val value = densityValue(kjPerGram)
+        return if (State.weightUnit == "g") {
+            "%.2f".format(Locale.US, value)
+        } else {
+            trim(round1(value))
+        }
+    }
+
+    /** `8.20kJ/g` / `1.96kcal/g` / `1960kcal/kg` / `98kcal/两`。 */
+    fun density(kjPerGram: Double): String = "${densityNumber(kjPerGram)}${densityUnitLabel()}"
 
     /* -------------------------------------------------------------- 时间 */
 
