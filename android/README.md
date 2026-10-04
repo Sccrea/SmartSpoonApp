@@ -8,10 +8,10 @@ Large collapsing top app bar、MD3 列表行与底部 NavigationBar。
 
 | 项 | 值 |
 | --- | --- |
-| 包名 | `com.smartspoon.l2` |
+| 包名 | `com.equimeal` |
 | 版本 | 0.0.2（versionCode 2） |
 | minSdk / targetSdk | 24 / 35 |
-| 入口 | `com.smartspoon.l2.MainActivity` |
+| 入口 | `com.equimeal.MainActivity` |
 | 产物 | `app/build/outputs/apk/release/app-release.apk`（发布版）/ `...\debug\app-debug.apk`（调试版） |
 | 源码 | `android/app/src/main/java/com/smartspoon/l2/`（UI 在 `ui/` 子包） |
 
@@ -24,7 +24,15 @@ Android 应用（Kotlin 原生界面）
    │ 识别新菜 POST /api/dishes            → 落盘 data/dishes.json
    ▼
 Flask 服务器（只有 JSON 接口，没有网页）
+
+Android 应用 ── BLE（Nordic UART / NUS）──► 智味勺固件（Nano 33 BLE Sense）
+   ▲ 状态帧 S,<重量×10>,<握持>,<稳定>,<mark>[,<电量>]（100ms 一条）
+   └ 命令 ZERO / MODE / PING / VER?
 ```
+
+勺子走**直连蓝牙**，不经过服务器：蓝牙连上时「用餐中」的数据来自勺子本身；
+没连勺子时才回落到服务器模拟设备。协议细节见仓库根目录
+[`docs/ble-protocol.md`](../docs/ble-protocol.md)。
 
 服务器地址在 **设置 → 杂项 → 服务器地址** 里修改（也可以「重新读取菜品信息」立刻重载）。
 默认地址是 **`https://sccrea64.cc.cd:16384`**（`State.DEFAULT_SERVER`，见 `Data.kt`）；
@@ -43,7 +51,11 @@ Flask 服务器（只有 JSON 接口，没有网页）
 | `MainActivity.kt` | 主界面（四个标签页）的宿主；其余页面都是独立 Activity，所以它只剩导航、弹窗与本地库读取 |
 | `AppCore.kt` | 进程级单例：**唯一**一份 `Store`、提示出口、重读本地库、服务器探测与导入、菜品增删改与弹窗动作。挂在 `Application` 上，与任何 Activity 的生死无关 |
 | `Units.kt` | **单位换算与格式化的唯一出口**：热量的 kJ↔kcal、重量的 g↔kg↔两、时间戳→文本（受「时间显示年 / 秒」控制） |
-| `MealSession.kt` | 一次用餐的会话状态：每一口、计时、设备轮询、餐次生命周期。进程级，不持有 Context |
+| `MealSession.kt` | 一次用餐的会话状态：每一口、计时、设备数据来源（蓝牙 / 服务器）、餐次生命周期。进程级，不持有 Context |
+| `SpoonProtocol.kt` | **蓝牙协议唯一的一份定义**：NUS 的 UUID、`S/B/A/E` 帧格式、解析函数 |
+| `SpoonLink.kt` | 蓝牙连接管理器（应用级单例）：扫描、连接、打开 Notify、粘包分行、命令下发、自动重连、stale 看门狗 |
+| `BleSpoon.kt` | 蓝牙 ↔ 应用的接线板：把状态帧落到 `State`/`MealSession`，把真机设备补进设备列表，下发归零 |
+| `BlePermissions.kt` | 蓝牙运行时权限：Android 12+ 用 `BLUETOOTH_SCAN/CONNECT`（`neverForLocation`，不要定位），11 及以下用 `ACCESS_FINE_LOCATION` |
 | `ui/MealFlowActivities.kt` | 用餐流程的四个独立 Activity（选择本餐菜单 / 自定义本餐菜单 / 用餐中 / 用餐结果）+ `MealFlowHost` 接口 + 底部托盘 |
 | `ui/PageShell.kt` | 「一页 = 自己的标题栏 + 内容」的公共外壳（`BasePageActivity`），设置子页与用餐流程共用 |
 | `ui/SettingsActivities.kt` | 设置四个子页 + 统计数据（独立 Activity）与 `SettingsHost` |
@@ -135,11 +147,30 @@ Copy-Item .env.example .env
 | Gradle | wrapper（`android/gradlew`，8.9，首次运行自动下载） |
 | JDK | 17（`JAVA_HOME`） |
 | AGP / Kotlin | 8.5.2 / 2.0.21（`android/build.gradle.kts`） |
-| compileSdk / targetSdk / minSdk | 35 / 35 / 24 |
+| compileSdk / targetSdk / minSdk | 36 / 35 / 24 |
 | Compose | BOM 2024.10.01：`material3`、`ui`、`material-icons-extended`、`activity-compose` |
+
+> `compileSdk = 36`：本机 SDK 装的是 `platforms;android-36`。`targetSdk` 保持 35 ——
+> targetSdk 决定的是**行为兼容性开关**（分区存储、后台限制…），升它要逐项复核运行时行为，
+> 与蓝牙功能无关，所以刻意不动。
 
 > Compose 编译器随 Kotlin 版本走，所以 `build.gradle.kts` 里必须应用
 > `org.jetbrains.kotlin.plugin.compose`（与 Kotlin 同为 2.0.21），并开 `buildFeatures { compose = true }`。
+
+## 测试
+
+蓝牙协议解析与「一包不等于一行」的半包/粘包重组有**纯 JVM 单元测试**
+（`app/src/test/java/com/smartspoon/l2/SpoonProtocolTest.kt`），不需要真机也不需要模拟器：
+
+```powershell
+cd android
+$env:JAVA_HOME = "<你的 JDK 17 路径>"
+.\gradlew.bat :app:testDebugUnitTest
+```
+
+为什么就测这两块：它们错了**不会崩**，只是静默给出错数据（读数不动、口数不涨、电量乱跳），
+而且要在真机 + 串口 + 蓝牙三件套齐了才能排查。报告在
+`app/build/reports/tests/testDebugUnitTest/index.html`。
 
 **签名**：`app/build.gradle.kts` 里的 `signingConfigs.projectDebug` 复用仓库自带的
 `android/debug.keystore`（别名 `androiddebugkey`，口令 `android`，与老 `build.py` 管线同一把钥匙）。
@@ -173,13 +204,41 @@ Scaffold
 ## 已实现的功能
 
 - **启动即读数据**：一次 `/api/bootstrap` 拿到全部数据，断网时显示「设置服务器地址 / 重新读取」。
+- **蓝牙连接真机智味勺**：设置 → 设备管理 → 扫描 / 连接 / 断开 / 自动回连；
+  「连接智味勺」弹窗里列出**扫到的真机**（带信号强度），点一行就连。
+  协议见仓库根目录 [`docs/ble-protocol.md`](../docs/ble-protocol.md)。
 - **完整用餐流程**：快速开始 → 选择本餐菜单（或自定义选菜）→ 连接智味勺 → 用餐提醒 → 用餐中
-  （退出 / 暂停 / 结束，实时数值按计时模拟）→ 用餐结果（可修正数据、完成）。
+  （退出 / 暂停 / 结束）→ 用餐结果（可修正数据、完成）。
+  「用餐中」的实时读数**连着蓝牙就是勺子的真数据**（100ms 一帧），没连才走服务器模拟。
+- **勺子自测（模拟勺子）**：设备管理里一个开关，在没有硬件的情况下把**真实的协议帧**
+  按"故意切成半包"的方式喂进解析链路，用来分清"是勺子的问题还是 App 的问题"。
 - **拍照识别**：系统相机或图库选图 → `POST /api/recognize` → 列出 Top N；
   命中本地菜品可直接「加入菜单」，**陌生的菜可以「保存到菜品库」写回服务器**（`POST /api/dishes`）。
-- **设置**：设备管理（附近 / 已保存、自动连接开关、连接/断开/保存）、菜单、杂项
+- **设置**：设备管理（附近 / 已保存、自动连接开关、连接/断开/保存、自测）、菜单、杂项
   （时间显示年/秒、热量与重量单位、**服务器地址**）、账户设置。
 - **底部四个标签栏**在餐前设置三页与用餐结果页始终显示；设置子页用大标题栏左上角的返回箭头回退。
+
+## 蓝牙相关的实现注意点
+
+- **扫描不用 `ScanFilter`**：广播包只有 31 字节，128 位的 NUS UUID 经常放不进广播包 ——
+  用硬件级服务过滤会导致"一条扫描回调都不来"，现场表现是"怎么扫都扫不到"。
+  改成收所有广播、在回调里自己按「服务 UUID 或名字像勺子」筛。
+- **`startScan` 必须幂等**：BLE 扫描器是单例资源，重复 `startScan` 会直接回调
+  `SCAN_FAILED_ALREADY_STARTED = 1`（界面上就是"点了没反应/错误码 1"）。
+  实现里先 `stopScan` 再起新的，并且**把错误码 1 当成"已经在扫了"忽略掉**，而不是报失败。
+- **部分 ROM 要求系统定位开关打开**（即使声明了 `neverForLocation` 且不索取定位权限），
+  否则扫描既不报错也不回调结果 —— 实现里主动检查并明确提示，不让用户对着转圈猜。
+- **一包不等于一行**：Notify 会按 MTU 切分，也会粘包。所以用 [`FrameReader`] 攒到 `\n` 才切帧，
+  而且**先切行、后裁剪**（顺序反了会把同一包里的完整帧污染成垃圾行）。
+- **记口由勺子发起**：手机上不提供「记录一口」按钮，避免"手机点一下"和"按 SW3"两条来源
+  互相打架。`B` 事件帧与状态帧里的 `mark` 增量都收敛到 `SpoonLink.emitBite` 一个出口去重。
+- **归零要下发命令**：只清手机侧的读数，100ms 后就会被下一个状态帧顶回来。
+- **GATT 回调只认当前实例**：旧连接的异步回调如果不丢弃，会把刚建立的新连接误判成掉线。
+- **设置子页也要挂 `AppDialogs`**：`State.dialog` 只是"要显示哪一个"，没有 composable 去画它
+  就等于"点了没反应"（设备改名弹窗踩过这个坑，见 `BaseSettingsActivity.Overlays`）。
+- **权限分两套模型**：Android 12+ 用 `BLUETOOTH_SCAN/CONNECT`（`neverForLocation`，不索取定位）；
+  11 及以下必须 `ACCESS_FINE_LOCATION`，否则扫描永远返回空。
+  弹窗里没法申请权限（弹窗不是 Activity），所以走 `BlePermissionActivity` 这个透明中转页。
 
 ## 动效
 
@@ -210,6 +269,6 @@ Scaffold
   已不能像以前那样覆盖。
 - **签名沿用仓库自带的 `android/debug.keystore`**（见构建一节），否则 `adb install -r`
   会因签名不符要求先卸载，本地库里的菜品与用餐记录会一起丢。
-- 相机输出用自带的 `ShotProvider`（`content://com.smartspoon.l2.shots/...`）交给相机应用，
+- 相机输出用自带的 `ShotProvider`（`content://com.equimeal.shots/...`）交给相机应用，
   避免 `FileUriExposedException`。
 - 食物缩略图用 emoji + 圆角方块（只挑 Unicode 6.0 以内的字符，模拟器自带字体较旧）。

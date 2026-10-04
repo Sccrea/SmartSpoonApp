@@ -1,13 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.smartspoon.l2"
-    android:versionCode="2"
-    android:versionName="0.0.2">
+    xmlns:tools="http://schemas.android.com/tools"
+    package="com.equimeal"
+    android:versionCode="4"
+    android:versionName="0.1.0">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CAMERA" />
 
+    <!-- 蓝牙：与智味勺（BLE UART / NUS）通信。
+         Android 12（API 31）起用运行时权限 BLUETOOTH_SCAN / BLUETOOTH_CONNECT；
+         12 以下只能走 BLUETOOTH / BLUETOOTH_ADMIN 这两个安装期权限，
+         而且**扫描必须同时有定位权限**，所以这里按 maxSdkVersion 分开声明，
+         免得 12+ 上还要跟用户要定位（那是旧模型的要求，与"扫描是为了定位"的告警一起消失）。 -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation"
+        tools:targetApi="s" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+
+    <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
 
@@ -24,7 +40,7 @@
     </queries>
 
     <application
-        android:name="com.smartspoon.l2.SmartSpoonApplication"
+        android:name="com.equimeal.SmartSpoonApplication"
         android:allowBackup="true"
         android:hardwareAccelerated="true"
         android:icon="@mipmap/ic_launcher"
@@ -35,7 +51,7 @@
         android:usesCleartextTraffic="true">
 
         <activity
-            android:name="com.smartspoon.l2.MainActivity"
+            android:name="com.equimeal.MainActivity"
             android:configChanges="orientation|screenSize|keyboardHidden|screenLayout"
             android:exported="true"
             android:launchMode="singleTop"
@@ -45,62 +61,70 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- 深链用显式 Intent 打开（adb shell am start -n com.smartspoon.l2/.MainActivity -d "http://…"），
+            <!-- 深链用显式 Intent 打开（adb shell am start -n com.equimeal/.MainActivity -d "http://…"），
                  因此这里刻意不声明 VIEW/BROWSABLE，避免应用出现在系统的「打开链接」选择器里。 -->
         </activity>
 
         <!-- 拍照识别时把相机写入的文件安全地交给相机应用 -->
         <provider
-            android:name="com.smartspoon.l2.ShotProvider"
-            android:authorities="com.smartspoon.l2.shots"
+            android:name="com.equimeal.ShotProvider"
+            android:authorities="com.equimeal.shots"
             android:exported="false"
             android:grantUriPermissions="true" />
+
+        <!-- 蓝牙权限的透明中转页（理由见 BlePermissionActivity 的类注释）：
+             没有界面、没有动画，只用来替「连接智味勺」这类弹窗申请蓝牙权限。 -->
+        <activity
+            android:name="com.equimeal.BlePermissionActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:theme="@style/TransparentTheme" />
 
         <!-- 设置区的四个子页：和 Gramophone 一样是独立 Activity，
              于是转场用的是**系统原生的 Activity 动画**，整窗（标题栏 + 内容）一起转场。
              parentActivityName 让系统对「返回」也套用正确的转场方向。 -->
         <activity
-            android:name="com.smartspoon.l2.ui.DeviceSettingsActivity"
+            android:name="com.equimeal.ui.DeviceSettingsActivity"
             android:exported="false"
             android:label="设备管理"
-            android:parentActivityName="com.smartspoon.l2.MainActivity"
+            android:parentActivityName="com.equimeal.MainActivity"
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize" />
         <activity
-            android:name="com.smartspoon.l2.ui.MenuManageActivity"
+            android:name="com.equimeal.ui.MenuManageActivity"
             android:exported="false"
             android:label="菜单"
-            android:parentActivityName="com.smartspoon.l2.MainActivity"
+            android:parentActivityName="com.equimeal.MainActivity"
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize" />
         <activity
-            android:name="com.smartspoon.l2.ui.MiscSettingsActivity"
+            android:name="com.equimeal.ui.MiscSettingsActivity"
             android:exported="false"
             android:label="杂项"
-            android:parentActivityName="com.smartspoon.l2.MainActivity"
+            android:parentActivityName="com.equimeal.MainActivity"
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize" />
         <activity
-            android:name="com.smartspoon.l2.ui.AccountSettingsActivity"
+            android:name="com.equimeal.ui.AccountSettingsActivity"
             android:exported="false"
             android:label="账户设置"
-            android:parentActivityName="com.smartspoon.l2.MainActivity"
+            android:parentActivityName="com.equimeal.MainActivity"
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize" />
 
         <!-- 统计数据（设计稿第 13 页）：同样走系统原生 Activity 转场 -->
         <activity
-            android:name="com.smartspoon.l2.ui.StatsActivity"
+            android:name="com.equimeal.ui.StatsActivity"
             android:exported="false"
             android:label="统计数据"
-            android:parentActivityName="com.smartspoon.l2.MainActivity"
+            android:parentActivityName="com.equimeal.MainActivity"
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize" />
         <activity
-            android:name="com.smartspoon.l2.ui.StatsSummaryActivity"
+            android:name="com.equimeal.ui.StatsSummaryActivity"
             android:exported="false"
             android:label="统计数据汇总"
-            android:parentActivityName="com.smartspoon.l2.ui.StatsActivity"
+            android:parentActivityName="com.equimeal.ui.StatsActivity"
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize" />
 
@@ -109,31 +133,49 @@
              整窗（标题栏 + 折叠行为 + 内容）一起动。
              parentActivityName 让系统对「返回」也套用正确的转场方向。 -->
         <activity
-            android:name="com.smartspoon.l2.ui.MenuChooserActivity"
+            android:name="com.equimeal.ui.MenuChooserActivity"
             android:exported="false"
             android:label="选择本餐菜单"
-            android:parentActivityName="com.smartspoon.l2.MainActivity"
+            android:parentActivityName="com.equimeal.MainActivity"
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize" />
         <activity
-            android:name="com.smartspoon.l2.ui.FoodPickerActivity"
+            android:name="com.equimeal.ui.FoodPickerActivity"
             android:exported="false"
             android:label="自定义本餐菜单"
-            android:parentActivityName="com.smartspoon.l2.MainActivity"
+            android:parentActivityName="com.equimeal.MainActivity"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize" />
+        <!-- 菜单编辑（新建 / 修改一份菜单）：与「自定义本餐菜单」同一套选菜界面。
+             parentActivityName 指到菜单管理页，从那里进去时返回方向才是对的。 -->
+        <activity
+            android:name="com.equimeal.ui.MenuEditorActivity"
+            android:exported="false"
+            android:label="菜单编辑"
+            android:parentActivityName="com.equimeal.ui.MenuManageActivity"
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize" />
         <activity
-            android:name="com.smartspoon.l2.ui.LiveActivity"
+            android:name="com.equimeal.ui.LiveActivity"
             android:exported="false"
             android:label="用餐中"
-            android:parentActivityName="com.smartspoon.l2.MainActivity"
+            android:parentActivityName="com.equimeal.MainActivity"
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize" />
         <activity
-            android:name="com.smartspoon.l2.ui.ResultActivity"
+            android:name="com.equimeal.ui.ResultActivity"
             android:exported="false"
             android:label="用餐结果"
-            android:parentActivityName="com.smartspoon.l2.MainActivity"
+            android:parentActivityName="com.equimeal.MainActivity"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize" />
+        <!-- 用餐记录详情（点记录列表的一行）：与用餐结果同一套界面，数据可改。
+             parentActivityName 指向主界面，返回时回到「用餐记录」那一栏。 -->
+        <activity
+            android:name="com.equimeal.ui.MealDetailActivity"
+            android:exported="false"
+            android:label="用餐记录详情"
+            android:parentActivityName="com.equimeal.MainActivity"
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize" />
 

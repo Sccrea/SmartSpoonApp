@@ -4,15 +4,30 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 android {
-    namespace = "com.smartspoon.l2"
-    compileSdk = 35
-    defaultConfig { applicationId = "com.smartspoon.l2"; minSdk = 24; targetSdk = 35; versionCode = 2; versionName = "0.0.2" }
+    namespace = "com.equimeal"
+    /*
+     * compileSdk 用 36：本机 SDK 里装的是 `platforms;android-36`（见 android/README.md 的构建一节）。
+     * targetSdk 保持 35 —— targetSdk 决定的是**行为兼容性开关**，升它要逐个复核运行时行为
+     * （分区存储、后台启动限制…），与本次「接上蓝牙」无关，所以刻意不动。
+     */
+    compileSdk = 36
+    defaultConfig {
+        applicationId = "com.equimeal"
+        minSdk = 24
+        targetSdk = 35
+        // 0.1.0：包名从 com.smartspoon.l2 改成 com.equimeal 是一次**不兼容的身份变更**
+        // （系统把它当成另一个应用：不会覆盖旧安装，旧安装的数据也不共享），
+        // 所以版本号跟着往前走一位。
+        versionCode = 4
+        versionName = "0.1.0"
+    }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     kotlinOptions { jvmTarget = "17" }
     buildFeatures {
         compose = true
-        // 让「设置 → 账户设置 → 关于智味勺」直接读 BuildConfig.VERSION_NAME，
-        // 版本号就只有 defaultConfig 这一处，不会再出现"界面写着旧版本号"的陈旧文案
+        // 让「设置 → 账户设置 → 关于 EquiMeal」直接读 BuildConfig.VERSION_NAME，
+        // 版本号就只有 defaultConfig 这一处，不会再出现"界面写着旧版本号"的陈旧文案；
+        // 另外 BuildConfig.DEBUG 用来决定"要不要显示给开发看的诊断信息"（见设备管理页）
         buildConfig = true
     }
 
@@ -42,6 +57,17 @@ android {
             )
         }
     }
+
+    /*
+     * 本地单元测试：`gradlew :app:testDebugUnitTest`
+     *
+     * 目前跑的是蓝牙协议解析与半包/粘包重组（`src/test/java/.../SpoonProtocolTest.kt`）——
+     * 这两块是"错了也不会崩、只是静默给错数据"的地方，最值得在装机之前先钉住。
+     * 纯 JVM 测试：不需要真机、不需要模拟器、不需要 SDK 里的任何系统镜像。
+     */
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
 }
 dependencies {
     // Jetpack Compose + Material3：与本机 Gramophone 同一套技术栈
@@ -57,4 +83,8 @@ dependencies {
     // 旧 View 版 UI 尚未删完，先留着
     implementation("androidx.recyclerview:recyclerview:1.3.2")
     debugImplementation("androidx.compose.ui:ui-tooling")
+
+    // 协议解析的单元测试（只用最基础的 JUnit，不引入 mock 框架：
+    // 被测试的是纯函数与纯字符串处理，不需要假 Context / 假 Looper）
+    testImplementation("junit:junit:4.13.2")
 }

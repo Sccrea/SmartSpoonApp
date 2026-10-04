@@ -6,4 +6,16 @@
         <item name="android:navigationBarColor">@color/brand_bg</item>
         <item name="android:colorAccent">@color/brand_green</item>
     </style>
+
+    <!--
+      蓝牙权限中转页（BlePermissionActivity）的主题：完全透明、无标题栏、无动画。
+      用户在这上面只会看到系统的权限弹窗，看不到任何界面 —— 所以它刻意不继承 AppTheme
+      （那样会先闪一下应用的背景色）。
+    -->
+    <style name="TransparentTheme" parent="@android:style/Theme.Translucent.NoTitleBar">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:backgroundDimEnabled">false</item>
+    </style>
 </resources>

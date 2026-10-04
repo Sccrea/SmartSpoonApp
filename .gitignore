@@ -19,6 +19,11 @@ android/local.properties
 *.apk
 *.idsig
 
+# 例外：release/ 里放的是**正式发布的安装包**，是交付物，要跟着源码一起走。
+# （build/ 目录里的中间产物仍然全部忽略 —— 那些每次构建都会变。）
+!release/
+!release/*.apk
+
 # 注意：android/debug.keystore **故意提交**——app/build.gradle.kts 的签名配置引用它，
 # 不提交的话别人克隆下来 assembleDebug 会直接失败。它只是调试密钥，
 # 别名 androiddebugkey、口令 android（公开约定），不构成机密。

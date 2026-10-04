@@ -1,6 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    应用名与几条系统级文案。
+
+    应用名从「智味勺」改成 **EquiMeal**：「智味勺」是那把硬件勺子的名字（BLE 广播名、
+    设备列表里的名字都还是它），而这是一个"记录吃了什么"的应用 —— 两者取名分开之后，
+    "勺子"与"应用"在界面与日志里就不会再混着叫。
+-->
 <resources>
-    <string name="app_name">智味勺</string>
+    <string name="app_name">EquiMeal</string>
     <string name="server_dialog_title">Flask 服务器地址</string>
     <string name="server_dialog_hint">例如 http://192.168.1.10:5000</string>
     <string name="offline_toast">未连接服务器，已进入离线演示模式（长按屏幕可设置服务器地址）</string>
