@@ -3,6 +3,7 @@ package com.equimeal.gramo.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -34,6 +35,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
@@ -221,9 +223,10 @@ fun ListRow(
  *
  * 两个刻意的取舍：
  * - 行尾只放图标（＋ / ✓）而不是带字胶囊 —— 文字按钮太宽，副标题会被挤成「能量密度: 2.1…」；
- * - **整行是唯一的"加入 / 取消加入"入口**，那颗圆形图标只是**状态指示器**：
- *   它不接收点击（`enabled = false`，理由见下面的注释），因此不存在
- *   "点圆形按钮"和"点整行"两套按压反馈。勾选态仍由 contentDescription 提供给读屏。
+ * - **整行是"加入 / 取消加入"的入口**（开关行是同一套做法）：那颗圆形图标是**指示器**，
+ *   它自带点击处理会让"点圆形"与"点行内别处"产生两套按压反馈，所以自己画一个不带点击的
+ *   （见下面的注释）。点在这颗圆上时事件会落到整行，效果与点行内其它位置一致；
+ *   勾选态仍由 contentDescription 提供给读屏。
  */
 @Composable
 fun FoodRow(
@@ -243,20 +246,45 @@ fun FoodRow(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (showToggle) {
                     /*
-                     * 纯指示器：`enabled = false` 让这颗按钮**不再处理点击**，水波随之消失。
+                     * 自己画这颗圆形图标，而不用 `FilledTonalIconButton`。
                      *
-                     * 为什么用 `enabled = false` 而不是 `onClick = null`：Material3 1.3.1 的
-                     * `FilledTonalIconButton` 把 `onClick` 声明成**非空必填**（`Function0<Unit>`），
-                     * 传不了 null（`javap` 查过 classes.jar 确认）。
-                     * 禁用只影响**内容色**（图标），容器仍是 `secondaryContainer`，外观与原来一致。
+                     * 两个原因：
+                     * 1. `onClick = null` 不行 —— Material3 1.3.1 把 `onClick` 声明成
+                     *    **非空必填**（`javap` 查过 classes.jar 确认）；而 `enabled = false`
+                     *    虽然能去掉点击，却会把图标变成**禁用灰**。这里要的是
+                     *    **外观与能点的按钮完全一样**（正常的 `onSecondaryContainer` 图标 +
+                     *    `secondaryContainer` 圆底）。
+                     * 2. 用 `Box` 画的没有自己的点击处理，所以**点在这颗圆上时事件会落到整行**，
+                     *    与点行内其它任何位置效果一致 —— 这正是"像开关那样：整行是唯一入口，
+                     *    指示器跟着状态变"的效果（开关行那颗 `Switch` 也是这么处理的）。
                      *
-                     * 仍然用**同一个节点**在内容里换图标：选中态切换时不重建节点，图标替换更干脆。
+                     * 颜色取自 `IconButtonDefaults.filledTonalIconButtonColors()`，而不是抄死色值：
+                     * 主题换色、Material You 动态取色时它跟着变，不会与真正的
+                     * FilledTonalIconButton 走样。尺寸按 Material3 的约定：
+                     * 40dp 按钮 + 24dp 图标。
                      */
-                    FilledTonalIconButton(onClick = {}, enabled = false) {
+                    val colors = IconButtonDefaults.filledTonalIconButtonColors()
+                    Box(
+                        Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(colors.containerColor),
+                        contentAlignment = Alignment.Center,
+                    ) {
                         if (selected) {
-                            Icon(Icons.Filled.Check, contentDescription = "已添加")
+                            Icon(
+                                Icons.Filled.Check,
+                                contentDescription = "已添加",
+                                tint = colors.contentColor,
+                                modifier = Modifier.size(24.dp),
+                            )
                         } else {
-                            Icon(Icons.Filled.Add, contentDescription = "添加到菜单")
+                            Icon(
+                                Icons.Filled.Add,
+                                contentDescription = "添加到菜单",
+                                tint = colors.contentColor,
+                                modifier = Modifier.size(24.dp),
+                            )
                         }
                     }
                 }
