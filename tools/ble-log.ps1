@@ -87,7 +87,7 @@ elseif ($serials.Count -eq 1) {
 else {
     $spoon = @()
     foreach ($s in $serials) {
-        $pkg = & $adbPath -s $s shell pm list packages com.equimeal 2>&1
+        $pkg = & $adbPath -s $s shell pm list packages com.equimeal.gramo 2>&1
         if ($pkg -match "com\.smartspoon\.l2") { $spoon += $s }
     }
     if ($spoon.Count -eq 1) {
@@ -129,10 +129,10 @@ $extra += "--- 适配器状态 ---"
 $extra += (& $adbPath @target shell dumpsys bluetooth_manager 2>&1 |
     Select-String -Pattern "enabled:|state:|Number of Ble app registered" | Select-Object -First 5)
 $extra += "--- App 蓝牙权限 ---"
-$extra += (& $adbPath @target shell dumpsys package com.equimeal 2>&1 |
+$extra += (& $adbPath @target shell dumpsys package com.equimeal.gramo 2>&1 |
     Select-String -Pattern "BLUETOOTH_SCAN: granted|BLUETOOTH_CONNECT: granted|ACCESS_FINE_LOCATION: granted")
 $extra += "--- App 版本 ---"
-$extra += (& $adbPath @target shell dumpsys package com.equimeal 2>&1 |
+$extra += (& $adbPath @target shell dumpsys package com.equimeal.gramo 2>&1 |
     Select-String -Pattern "versionName=" | Select-Object -First 1)
 $extra | Tee-Object -FilePath $out -Append | Write-Host
 

@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    package="com.equimeal"
-    android:versionCode="4"
-    android:versionName="0.1.0">
+    package="com.equimeal.gramo"
+    android:versionCode="5"
+    android:versionName="0.1.1">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -40,7 +40,7 @@
     </queries>
 
     <application
-        android:name="com.equimeal.SmartSpoonApplication"
+        android:name="com.equimeal.gramo.SmartSpoonApplication"
         android:allowBackup="true"
         android:hardwareAccelerated="true"
         android:icon="@mipmap/ic_launcher"
@@ -51,7 +51,7 @@
         android:usesCleartextTraffic="true">
 
         <activity
-            android:name="com.equimeal.MainActivity"
+            android:name="com.equimeal.gramo.MainActivity"
             android:configChanges="orientation|screenSize|keyboardHidden|screenLayout"
             android:exported="true"
             android:launchMode="singleTop"
@@ -61,21 +61,21 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- 深链用显式 Intent 打开（adb shell am start -n com.equimeal/.MainActivity -d "http://…"），
+            <!-- 深链用显式 Intent 打开（adb shell am start -n com.equimeal.gramo/.MainActivity -d "http://…"），
                  因此这里刻意不声明 VIEW/BROWSABLE，避免应用出现在系统的「打开链接」选择器里。 -->
         </activity>
 
         <!-- 拍照识别时把相机写入的文件安全地交给相机应用 -->
         <provider
-            android:name="com.equimeal.ShotProvider"
-            android:authorities="com.equimeal.shots"
+            android:name="com.equimeal.gramo.ShotProvider"
+            android:authorities="com.equimeal.gramo.shots"
             android:exported="false"
             android:grantUriPermissions="true" />
 
         <!-- 蓝牙权限的透明中转页（理由见 BlePermissionActivity 的类注释）：
              没有界面、没有动画，只用来替「连接智味勺」这类弹窗申请蓝牙权限。 -->
         <activity
-            android:name="com.equimeal.BlePermissionActivity"
+            android:name="com.equimeal.gramo.BlePermissionActivity"
             android:excludeFromRecents="true"
             android:exported="false"
             android:theme="@style/TransparentTheme" />
@@ -84,47 +84,47 @@
              于是转场用的是**系统原生的 Activity 动画**，整窗（标题栏 + 内容）一起转场。
              parentActivityName 让系统对「返回」也套用正确的转场方向。 -->
         <activity
-            android:name="com.equimeal.ui.DeviceSettingsActivity"
+            android:name="com.equimeal.gramo.ui.DeviceSettingsActivity"
             android:exported="false"
             android:label="设备管理"
-            android:parentActivityName="com.equimeal.MainActivity"
+            android:parentActivityName="com.equimeal.gramo.MainActivity"
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize" />
         <activity
-            android:name="com.equimeal.ui.MenuManageActivity"
+            android:name="com.equimeal.gramo.ui.MenuManageActivity"
             android:exported="false"
             android:label="菜单"
-            android:parentActivityName="com.equimeal.MainActivity"
+            android:parentActivityName="com.equimeal.gramo.MainActivity"
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize" />
         <activity
-            android:name="com.equimeal.ui.MiscSettingsActivity"
+            android:name="com.equimeal.gramo.ui.MiscSettingsActivity"
             android:exported="false"
             android:label="杂项"
-            android:parentActivityName="com.equimeal.MainActivity"
+            android:parentActivityName="com.equimeal.gramo.MainActivity"
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize" />
         <activity
-            android:name="com.equimeal.ui.AccountSettingsActivity"
+            android:name="com.equimeal.gramo.ui.AccountSettingsActivity"
             android:exported="false"
             android:label="账户设置"
-            android:parentActivityName="com.equimeal.MainActivity"
+            android:parentActivityName="com.equimeal.gramo.MainActivity"
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize" />
 
         <!-- 统计数据（设计稿第 13 页）：同样走系统原生 Activity 转场 -->
         <activity
-            android:name="com.equimeal.ui.StatsActivity"
+            android:name="com.equimeal.gramo.ui.StatsActivity"
             android:exported="false"
             android:label="统计数据"
-            android:parentActivityName="com.equimeal.MainActivity"
+            android:parentActivityName="com.equimeal.gramo.MainActivity"
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize" />
         <activity
-            android:name="com.equimeal.ui.StatsSummaryActivity"
+            android:name="com.equimeal.gramo.ui.StatsSummaryActivity"
             android:exported="false"
             android:label="统计数据汇总"
-            android:parentActivityName="com.equimeal.ui.StatsActivity"
+            android:parentActivityName="com.equimeal.gramo.ui.StatsActivity"
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize" />
 
@@ -133,49 +133,49 @@
              整窗（标题栏 + 折叠行为 + 内容）一起动。
              parentActivityName 让系统对「返回」也套用正确的转场方向。 -->
         <activity
-            android:name="com.equimeal.ui.MenuChooserActivity"
+            android:name="com.equimeal.gramo.ui.MenuChooserActivity"
             android:exported="false"
             android:label="选择本餐菜单"
-            android:parentActivityName="com.equimeal.MainActivity"
+            android:parentActivityName="com.equimeal.gramo.MainActivity"
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize" />
         <activity
-            android:name="com.equimeal.ui.FoodPickerActivity"
+            android:name="com.equimeal.gramo.ui.FoodPickerActivity"
             android:exported="false"
             android:label="自定义本餐菜单"
-            android:parentActivityName="com.equimeal.MainActivity"
+            android:parentActivityName="com.equimeal.gramo.MainActivity"
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize" />
         <!-- 菜单编辑（新建 / 修改一份菜单）：与「自定义本餐菜单」同一套选菜界面。
              parentActivityName 指到菜单管理页，从那里进去时返回方向才是对的。 -->
         <activity
-            android:name="com.equimeal.ui.MenuEditorActivity"
+            android:name="com.equimeal.gramo.ui.MenuEditorActivity"
             android:exported="false"
             android:label="菜单编辑"
-            android:parentActivityName="com.equimeal.ui.MenuManageActivity"
+            android:parentActivityName="com.equimeal.gramo.ui.MenuManageActivity"
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize" />
         <activity
-            android:name="com.equimeal.ui.LiveActivity"
+            android:name="com.equimeal.gramo.ui.LiveActivity"
             android:exported="false"
             android:label="用餐中"
-            android:parentActivityName="com.equimeal.MainActivity"
+            android:parentActivityName="com.equimeal.gramo.MainActivity"
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize" />
         <activity
-            android:name="com.equimeal.ui.ResultActivity"
+            android:name="com.equimeal.gramo.ui.ResultActivity"
             android:exported="false"
             android:label="用餐结果"
-            android:parentActivityName="com.equimeal.MainActivity"
+            android:parentActivityName="com.equimeal.gramo.MainActivity"
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize" />
         <!-- 用餐记录详情（点记录列表的一行）：与用餐结果同一套界面，数据可改。
              parentActivityName 指向主界面，返回时回到「用餐记录」那一栏。 -->
         <activity
-            android:name="com.equimeal.ui.MealDetailActivity"
+            android:name="com.equimeal.gramo.ui.MealDetailActivity"
             android:exported="false"
             android:label="用餐记录详情"
-            android:parentActivityName="com.equimeal.MainActivity"
+            android:parentActivityName="com.equimeal.gramo.MainActivity"
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize" />
 

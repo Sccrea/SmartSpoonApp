@@ -1,4 +1,4 @@
-# 智味勺 L2 · Jetpack Compose + Material 3 Android 应用
+# Gramo · Jetpack Compose + Material 3 Android 应用
 
 界面全部用 **Jetpack Compose + Material 3** 描述（没有 WebView、没有 XML 布局），
 数据来自 Flask 服务器的 JSON 接口。构建走 **Gradle 8.9 + AGP 8.5.2 + Kotlin 2.0.21 + Compose BOM 2024.10.01**。
@@ -8,12 +8,13 @@ Large collapsing top app bar、MD3 列表行与底部 NavigationBar。
 
 | 项 | 值 |
 | --- | --- |
-| 包名 | `com.equimeal` |
-| 版本 | 0.0.2（versionCode 2） |
+| 应用名 | Gramo（0.1.1 起；0.1.0 叫 EquiMeal，再早叫「智味勺」） |
+| 包名 | `com.equimeal.gramo` |
+| 版本 | 0.1.1（versionCode 5） |
 | minSdk / targetSdk | 24 / 35 |
-| 入口 | `com.equimeal.MainActivity` |
+| 入口 | `com.equimeal.gramo.MainActivity` |
 | 产物 | `app/build/outputs/apk/release/app-release.apk`（发布版）/ `...\debug\app-debug.apk`（调试版） |
-| 源码 | `android/app/src/main/java/com/smartspoon/l2/`（UI 在 `ui/` 子包） |
+| 源码 | `android/app/src/main/java/com/equimeal/gramo/`（UI 在 `ui/` 子包） |
 
 ## 与其他部分的关系
 
@@ -269,6 +270,6 @@ Scaffold
   已不能像以前那样覆盖。
 - **签名沿用仓库自带的 `android/debug.keystore`**（见构建一节），否则 `adb install -r`
   会因签名不符要求先卸载，本地库里的菜品与用餐记录会一起丢。
-- 相机输出用自带的 `ShotProvider`（`content://com.equimeal.shots/...`）交给相机应用，
+- 相机输出用自带的 `ShotProvider`（`content://com.equimeal.gramo.shots/...`）交给相机应用，
   避免 `FileUriExposedException`。
 - 食物缩略图用 emoji + 圆角方块（只挑 Unicode 6.0 以内的字符，模拟器自带字体较旧）。

@@ -4,7 +4,7 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 android {
-    namespace = "com.equimeal"
+    namespace = "com.equimeal.gramo"
     /*
      * compileSdk 用 36：本机 SDK 里装的是 `platforms;android-36`（见 android/README.md 的构建一节）。
      * targetSdk 保持 35 —— targetSdk 决定的是**行为兼容性开关**，升它要逐个复核运行时行为
@@ -12,14 +12,18 @@ android {
      */
     compileSdk = 36
     defaultConfig {
-        applicationId = "com.equimeal"
+        applicationId = "com.equimeal.gramo"
         minSdk = 24
         targetSdk = 35
-        // 0.1.0：包名从 com.smartspoon.l2 改成 com.equimeal 是一次**不兼容的身份变更**
-        // （系统把它当成另一个应用：不会覆盖旧安装，旧安装的数据也不共享），
-        // 所以版本号跟着往前走一位。
-        versionCode = 4
-        versionName = "0.1.0"
+        /*
+         * 0.1.1：应用名改为 **Gramo**，包名从 `com.equimeal` 改成 `com.equimeal.gramo`。
+         *
+         * 包名变化同样是一次**不兼容的身份变更**（系统当成另一个应用：不覆盖旧安装、
+         * 旧安装的数据也不共享），所以版本号继续往前走。
+         * 0.1.0 那一步是 `com.smartspoon.l2` → `com.equimeal`，同样是身份变更。
+         */
+        versionCode = 5
+        versionName = "0.1.1"
     }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     kotlinOptions { jvmTarget = "17" }

@@ -1,4 +1,4 @@
-# EquiMeal · Jetpack Compose Android 应用 + Flask 数据服务器
+# Gramo · Jetpack Compose Android 应用 + Flask 数据服务器
 
 按设计稿实现的移动端应用：**界面是 Jetpack Compose + Material 3**
 （页面风格对齐 Gramophone：Material You 动态取色、大标题栏、MD3 列表行与底部导航），
@@ -6,9 +6,10 @@
 
 | 项目 | 值 |
 | --- | --- |
-| 应用名 | **EquiMeal** |
-| 包名 | `com.equimeal`（0.1.0 起；此前是 `com.smartspoon.l2` / 应用名「智味勺」） |
-| 版本 | 0.1.0（versionCode 4） |
+| 应用名 | **Gramo** |
+| 包名 | `com.equimeal.gramo` |
+| 版本 | 0.1.1（versionCode 5） |
+| 名称变更史 | 应用名「智味勺」→ EquiMeal（0.1.0）→ **Gramo**（0.1.1）；包名 `com.smartspoon.l2` → `com.equimeal` → **`com.equimeal.gramo`**。两次包名变化都是**不兼容的身份变更**（详见 [release/README.md](release/README.md)） |
 | 硬件 | 「**智味勺**」仍是那把 BLE 勺子的名字（广播名 / 设备列表），与上面的应用名是两回事 |
 
 > **设计稿不在仓库里**（原始 PDF 约 7.8MB，逐页导出的 PNG 也在 `.gitignore` 里）。
@@ -232,8 +233,10 @@ adb install -r android\app\build\outputs\apk\release\app-release.apk
 | 传输 | Nordic UART Service（NUS），勺子固件用 `BLEUart`，App 用原生 `BluetoothGatt` |
 | 扫描 | 广播名 `SmartSpoon`；App **不做硬件级服务过滤**（广播包只有 31 字节，128 位 UUID 常放不下），改成自己按"服务 UUID 或名字像勺子"筛 |
 | 数据 | 状态帧 `S,<重量×10>,<握持>,<稳定>,<<mark>>[,<电量>]`，100ms 一条 |
-| 电量 | 连接弹窗里每台勺子都显示电量：**BLE 广播包里没有电量**，只有连上之后读标准电量服务（`0x180F` / `0x2A19`）才有 —— 所以从没连过的设备如实显示「电量未知」，连上过的显示最近一次读到的值（当前连着的用实时值） |
-| 记口 | **由勺子发起**：按勺子上的 SW3 → 固件推 `B` 事件帧（带本轮舀取峰值重量）+ `mark` 递增，App 侧去重后自动累计；手机上不再有「记录一口」按钮 |
+| 电量 | 连接弹窗里每台勺子都显示电量：**BLE 广播包里没有电量**，只有连上之后读标准电量服务（`0x180F` / `0x2A19`）才有 —— 所以**没连上的勺子不显示电量那一段**（不写"未知"占位），连上过的显示最近一次读到的值（当前连着的用实时值） |
+| 记口 | **由勺子自动发起**（固件 1.2 起）：勺子用勺柄上的体感传感器判"嘴正在接触" → 记下**吃前重量**；嘴离开且勺子端稳后记下**吃后重量**，两者相减得到这一口的净重，推 `B` 事件帧 + `mark` 递增，App 侧去重后自动累计。手机上不再有「记录一口」按钮，勺子上也没有记口键（SW3 空闲） |
+| 勺子按键 | SW1 去皮 / SW2 电源键（长按 2 秒关机、双击重启）/ SW3 空闲 —— 详见 [docs/ble-protocol.md](docs/ble-protocol.md) 第 6 节 |
+| baseline | 固件每次开机（含双击重启）用**前 2 秒**的体感读数取平均当作基准；这 2 秒里若把勺子叼在嘴里，基准会被抬高、整餐都判不出接触（App 的「用餐中」页面写了这条提醒） |
 | 归零 | 「点击归零重量」= 手机侧清零 **+** 下发 `ZERO` 让固件重新 `tare()`（只做前者会被下一帧顶回来） |
 | 断线 | 掉线后 1.5 秒自动按地址重连；连上但 3 秒没数据会明确提示"可能休眠/走远" |
 | 权限 | Android 12+ 要 `BLUETOOTH_SCAN/CONNECT`（声明 `neverForLocation`，**不索取定位**）；11- 才需要定位。另有部分 ROM 要求**系统定位开关**打开，App 会主动检查并明确提示 |
