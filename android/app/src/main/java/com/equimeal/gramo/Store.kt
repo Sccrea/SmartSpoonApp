@@ -5,6 +5,11 @@ import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import java.util.Calendar
+import kotlin.math.ceil
+import kotlin.math.floor
+import kotlin.math.log10
+import kotlin.math.pow
+import kotlin.math.roundToInt
 
 /** 一次「口」记录。 */
 data class Bite(
@@ -636,31 +641,102 @@ class Store(
     }
 
     /**
-     * 折线图的原始数据。库里的能量按 kJ 存，这里**就按当前热量单位换算好**再交出去 ——
-     * 数值、刻度、轴标签必须一起换，否则选了 kcal 之后图上还写着「摄入能量/kJ」。
+     * 统计图的数据，**按当前的统计图设置现算**。
+     *
+     * 关键点是它必须接受这些参数，而不是自己去猜：
+     * - [xAxis]：「用餐完成时间」用 `ended_at`、「用餐开始时间」用 `started_at`、
+     *   「记录序号」不看时间（就是第几餐）；
+     * - [yAxis]：「摄入能量 / 摄入重量 / 记录口数」三选一；
+     * - [range]：「全部 / 近 7 次 / 近 5 次」—— **先按范围裁剪、再算刻度**，
+     *   否则近 7 次的图会沿用全部数据的刻度，柱子被压扁在底部；
+     * - [count]：`近 N 次` 里的 N（`null` = 全部）。
+     *
+     * 数值一律先换算到**当前显示单位**再交出去：数值、刻度、轴标签必须一起换，
+     * 否则选了 kcal 之后图上还写着「摄入能量/kJ」。
      */
-    fun chartData(): ChartData {
-        val points = mutableListOf<ChartPoint>()
+    fun chartData(xAxis: String, yAxis: String, count: Int? = null): ChartData {
+        data class Row(val endedAt: Long, val startedAt: Long, val energy: Double, val weight: Double, val bites: Int)
+
+        val rows = mutableListOf<Row>()
         readableDatabase.rawQuery(
-            "SELECT ended_at, energy FROM meals ORDER BY ended_at", null
+            "SELECT ended_at, started_at, energy, weight, bites FROM meals ORDER BY ended_at",
+            null,
         ).use { cursor ->
             while (cursor.moveToNext()) {
-                val energy = Units.energyValue(cursor.getDouble(1))
-                points.add(ChartPoint(Units.date(cursor.getLong(0)), energy.toInt()))
+                rows.add(
+                    Row(
+                        endedAt = cursor.getLong(0),
+                        startedAt = cursor.getLong(1),
+                        energy = Units.energyValue(cursor.getDouble(2)),
+                        weight = Units.weightValue(cursor.getDouble(3)),
+                        bites = cursor.getInt(4),
+                    )
+                )
             }
         }
+        // 近 N 次：按结束时间取最后 N 条（ORDER BY ended_at，所以 takeLast 就是最近 N 餐）
+        val shown = if (count != null) rows.takeLast(count) else rows
+
+        val points = shown.mapIndexed { index, row ->
+            val y = when (yAxis) {
+                "摄入重量" -> row.weight.toInt()
+                "记录口数" -> row.bites
+                else -> row.energy.toInt()
+            }
+            val x = when (xAxis) {
+                "用餐开始时间" -> xLabelOf(row.startedAt)
+                // 序号就是"第几餐"：列表里那条记录也是同一个序号，方便对上
+                "记录序号" -> "#${index + 1}"
+                else -> xLabelOf(row.endedAt)
+            }
+            ChartPoint(x, y)
+        }
+
         val max = points.maxOfOrNull { it.y } ?: 0
-        // 刻度步长跟着单位走：kcal 的数值比 kJ 小 4 倍多，还用 200 一档会把图压成一条线
-        val unit = if (State.energyUnit == "kcal") 50 else 200
-        val step = maxOf(unit, ((max + unit - 1) / unit) * unit)
-        val ticks = (0..6).map { it * step / 6 }
+        val ticks = (0..6).map { it * tickStep(max) / 6 }
+        // 点多的时候抽稀标签：最多画 8 个，最后一个由绘制侧补上
+        val labelEvery = maxOf(1, ceil(points.size / 8.0).toInt())
+
         return ChartData(
-            xLabel = "用餐完成时间",
-            yLabel = Units.energyAxisLabel(),
+            xLabel = if (xAxis == "记录序号") "记录序号" else xAxis,
+            yLabel = when (yAxis) {
+                "摄入重量" -> Units.weightAxisLabel()
+                "记录口数" -> "记录口数/口"
+                else -> Units.energyAxisLabel()
+            },
             yTicks = ticks,
-            xTicks = points.map { it.x },
+            // 先抽稀：每 labelEvery 个取一个
+            xTicks = points.filterIndexed { i, _ -> i % labelEvery == 0 }.map { it.x },
             points = points,
+            labelEvery = labelEvery,
         )
+    }
+
+    /**
+     * x 轴的一处时间标签。
+     *
+     * 用 [Units.dateTime]（受「设置 → 杂项」里的**年 / 秒**两个开关控制），
+     * 而不是只画日期：同一天可能吃好几餐，只写「10月4日」会得到几个一模一样的刻度。
+     */
+    private fun xLabelOf(millis: Long): String =
+        if (millis > 0L) Units.dateTime(millis) else "—"
+
+    /**
+     * y 轴刻度步长：把最大值凑成 6 段、每段再"取整"到 1/2/5×10ⁿ，
+     * 这样刻度值是 100、200、400 这种好读的数，而不是 137、274 这种。
+     */
+    private fun tickStep(max: Int): Int {
+        if (max <= 0) return 1
+        val raw = max / 6.0
+        val mag = 10.0.pow(floor(log10(raw)))
+        val n = raw / mag
+        val nice = when {
+            n <= 1.0 -> 1.0
+            n <= 2.0 -> 2.0
+            n <= 5.0 -> 5.0
+            else -> 10.0
+        }
+        return maxOf(1, (nice * mag).roundToInt()) * 6
     }
 
     private fun formatDuration(minutes: Long): String {

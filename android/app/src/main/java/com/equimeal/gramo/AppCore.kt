@@ -146,7 +146,16 @@ object AppCore {
             favoriteTimes = store.favorites(),
             records = store.meals(),
             stats = store.stats(),
-            chart = store.chartData(),
+            // 传当前设置进去：x/y 轴、显示范围、单位都在这里生效（见 Store.chartData 的说明）
+            chart = store.chartData(
+                xAxis = State.axisX,
+                yAxis = State.axisY,
+                count = when (State.chartRange) {
+                    "近 7 次" -> 7
+                    "近 5 次" -> 5
+                    else -> null
+                },
+            ),
             devices = rememberedDevices(State.data?.devices ?: mutableListOf()),
             // 登录后就用账号昵称；未登录给空名字，界面显示"未登录"而不是编一个"张三"出来
             user = State.data?.user?.takeIf { it.name.isNotBlank() }

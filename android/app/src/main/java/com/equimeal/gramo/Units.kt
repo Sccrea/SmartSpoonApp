@@ -46,7 +46,6 @@ object Units {
 
     /** 只在数值后加单位，不换行的那种（图表轴标签用）。 */
     fun energyAxisLabel(): String = "摄入能量/${energyUnitLabel()}"
-
     /* ------------------------------------------------------------ 重量 */
 
     /** 把基准单位（g）换算成当前显示单位下的**数值**。 */
@@ -77,6 +76,9 @@ object Units {
 
     /** `15 g` / `0.02 kg` / `0.3 两`。 */
     fun weight(grams: Double): String = "${weightNumber(grams)} ${weightUnitLabel()}"
+
+    /** 图表 y 轴上的重量标签（与 [energyAxisLabel] 同一套写法）。 */
+    fun weightAxisLabel(): String = "摄入重量/${weightUnitLabel()}"
 
     /* -------------------------------------------------------- 能量密度 */
 

@@ -60,6 +60,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.equimeal.gramo.AppCore
 import com.equimeal.gramo.MainActivity
 import com.equimeal.gramo.MealRecord
 import com.equimeal.gramo.MealSession
@@ -67,6 +68,8 @@ import com.equimeal.gramo.SpoonLink
 import com.equimeal.gramo.State
 import com.equimeal.gramo.Units
 import kotlin.math.floor
+import kotlin.math.ln
+import kotlin.math.min
 import android.content.Context
 import android.content.Intent
 import androidx.compose.material.icons.filled.BarChart
@@ -212,6 +215,12 @@ fun RecordsScreen(a: MainActivity) {
  */
 @Composable
 fun StatsScreen(ctx: Context) {
+    /*
+     * 改任何一项设置都要**重新读一次库**：图表的点、y 轴刻度、轴标签都是
+     * `Store.chartData(xAxis, yAxis, count)` 现算出来的（见那里的说明），
+     * 只改 State 不会让已算好的 `State.data.chart` 跟着变。
+     * 「坐标轴间距」是例外 —— 它只影响绘制方式，由 MealChart 直接读 State 判断。
+     */
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 16.dp),
@@ -220,16 +229,22 @@ fun StatsScreen(ctx: Context) {
             item {
                 SelectRow(
                     title = "x轴:  ${State.axisX}",
-                    options = listOf("用餐完成时间", "用餐开始时间"),
+                    options = listOf("用餐完成时间", "用餐开始时间", "记录序号"),
                     value = State.axisX,
-                ) { State.axisX = it }
+                ) {
+                    State.axisX = it
+                    AppCore.loadFromStore()
+                }
             }
             item {
                 SelectRow(
                     title = "y轴:  ${State.axisY}",
                     options = listOf("摄入能量", "摄入重量", "记录口数"),
                     value = State.axisY,
-                ) { State.axisY = it }
+                ) {
+                    State.axisY = it
+                    AppCore.loadFromStore()
+                }
             }
             item {
                 SelectRow(
@@ -245,10 +260,20 @@ fun StatsScreen(ctx: Context) {
                     subtitle = "更改统计图展示数据的范围",
                     options = listOf("全部", "近 7 次", "近 5 次"),
                     value = State.chartRange,
-                ) { State.chartRange = it }
+                ) {
+                    State.chartRange = it
+                    AppCore.loadFromStore()
+                }
             }
             item {
-                // 旧版 ChartView 只实现了线性刻度：这一项同样是「记录下来但不改变绘制」，保持一致
+                /*
+                 * 坐标轴间距：**这一项现在真的改变绘制**。
+                 *
+                 * 「对数」把 y 值取 log 之后再按线性比例摆放，刻度文字仍写原始数值
+                 * （读图的人关心的是"能量多少"，不是 log 是多少）。
+                 * 值域里可能出现 0（比如 0 口的记录），所以映射时用 log(1+v)，
+                 * 保证 0 落在轴底、且整体单调 —— 直接用 log(v) 会得到 -∞。
+                 */
                 SelectRow(
                     title = "坐标轴间距",
                     subtitle = "更改坐标轴数值分布",
@@ -354,18 +379,38 @@ private fun MealChart() {
         val padLeft = 42.dp.toPx()
         val padRight = 14.dp.toPx()
         val padTop = 36.dp.toPx()
-        val padBottom = 46.dp.toPx()
+        /*
+         * 底部留给斜排的 x 轴标签。比旧版的 46dp 大一些：x 轴现在画的是**时间**
+         * （`Units.dateTime`，如「2026年10月4日 14:19」），比原来的「10/4」长得多，
+         * 斜排 32° 之后也需要更多空间，否则会被裁掉。
+         */
+        val padBottom = 58.dp.toPx()
         val plotW = size.width - padLeft - padRight
         val plotH = size.height - padTop - padBottom
         if (plotW <= 0f || plotH <= 0f) return@Canvas
         val yMax = (chart.yTicks.maxOrNull() ?: 1200).toFloat().coerceAtLeast(1f)
 
+        /*
+         * 坐标轴间距：线性 = 数值直接按比例；对数 = 先把值取 log 再按比例。
+         *
+         * 用 `log(1 + v)` 而不是 `log(v)`：值域里会出现 0（0 口的记录、0 能量的空餐），
+         * 而 log(0) 是 -∞。加 1 之后 0 映射到 0（落在轴底），整体仍然单调递增。
+         * 缩放统一除以 `log(1 + yMax)`，保证最大值正好落在轴顶。
+         */
+        val logScale = State.axisScale == "对数"
+        fun ratio(value: Float): Float =
+            if (logScale) {
+                (ln(1f + value) / ln(1f + yMax)).coerceIn(0f, 1f)
+            } else {
+                (value / yMax).coerceIn(0f, 1f)
+            }
+
         labelPaint.color = scheme.onSurfaceVariant.toArgb()
         labelPaint.textSize = 9.sp.toPx()
 
-        // y 轴刻度线 + 刻度值
+        // y 轴刻度线 + 刻度值（刻度文字写**原始数值**，不写 log 值 —— 读图的人关心的是能量多少）
         chart.yTicks.forEach { tick ->
-            val y = padTop + plotH - plotH * tick / yMax
+            val y = padTop + plotH - plotH * ratio(tick.toFloat())
             drawLine(
                 color = scheme.outlineVariant,
                 start = Offset(padLeft, y),
@@ -378,25 +423,25 @@ private fun MealChart() {
             }
         }
 
-        val all = chart.points
-        val points = when (State.chartRange) {
-            "近 7 次" -> all.takeLast(7)
-            "近 5 次" -> all.takeLast(5)
-            else -> all
-        }
+        // 范围裁剪已经在 Store.chartData 里做过了（先裁剪再算刻度），这里直接用
+        val points = chart.points
         // 少于两个点连不成线：与旧版一样，此时只留下网格
         if (points.size < 2) return@Canvas
 
         val stepX = plotW / (points.size - 1)
         fun px(index: Int) = padLeft + stepX * index
-        fun py(index: Int) = padTop + plotH - plotH * points[index].y / yMax
+        fun py(index: Int) = padTop + plotH - plotH * ratio(points[index].y.toFloat())
 
         val visible = progress.value * (points.size - 1)
         val lastFull = floor(visible.toDouble()).toInt().coerceIn(0, points.size - 1)
         val partial = visible - lastFull
 
         if (State.chartStyle == "柱状统计图") {
-            val barWidth = stepX * 0.5f
+            /*
+             * 柱状图的柱宽按**柱子数量**分：点少时 0.5 步宽会显得又细又疏，
+             * 所以这里取「步宽的 60%，但不超过 28dp」，并在点很少时用更克制的宽度。
+             */
+            val barWidth = minOf(stepX * 0.6f, 28.dp.toPx())
             val baseY = padTop + plotH
             for (index in 0..lastFull) {
                 val grow = if (index < lastFull) 1f else partial
@@ -434,9 +479,23 @@ private fun MealChart() {
             }
         }
 
-        // x 轴日期斜排
+        /*
+         * x 轴时间标签：斜排 -32°，**抽稀之后**再画。
+         *
+         * 抽稀在 `Store.chartData` 里算好（`labelEvery`），这里只负责按间隔画；
+         * 最后一个点**一定补一个标签**（否则图的最右边没有时间，读不出截止到哪一餐）。
+         */
+        val lastLabelIndex = ((points.size - 1) / chart.labelEvery) * chart.labelEvery
+        val labelIndices = buildList {
+            var i = 0
+            while (i < points.size) {
+                add(i)
+                i += chart.labelEvery
+            }
+            if (lastLabelIndex != points.lastIndex) add(points.lastIndex)
+        }
         labelPaint.textAlign = Paint.Align.RIGHT
-        points.forEachIndexed { index, point ->
+        labelIndices.forEach { index ->
             drawIntoCanvas { canvas ->
                 val native = canvas.nativeCanvas
                 native.save()
@@ -445,13 +504,15 @@ private fun MealChart() {
                     size.height - padBottom + 14.dp.toPx(),
                 )
                 native.rotate(-32f)
-                native.drawText(point.x, 0f, 0f, labelPaint)
+                native.drawText(points[index].x, 0f, 0f, labelPaint)
                 native.restore()
             }
         }
         labelPaint.textAlign = Paint.Align.LEFT
         drawIntoCanvas { canvas ->
-            canvas.nativeCanvas.drawText(chart.yLabel, padLeft - 34.dp.toPx(), 14.dp.toPx(), labelPaint)
+            val axisTitle =
+                if (State.axisScale == "对数") "${chart.yLabel}（对数）" else chart.yLabel
+            canvas.nativeCanvas.drawText(axisTitle, padLeft - 34.dp.toPx(), 14.dp.toPx(), labelPaint)
         }
     }
 }

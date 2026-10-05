@@ -71,8 +71,14 @@ fun MealDetailScreen(host: MealDetailHost, editor: MealEditor) {
         contentPadding = PaddingValues(bottom = 16.dp),
     ) {
         item {
+            /*
+             * 起止时间都显示，并且**用时间戳现格式化**（`Units.dateTime`）——
+             * 这样「设置 → 杂项」里的「时间显示年 / 秒」两个开关一改，这一页立刻跟着变，
+             * 而不是显示库里读出来时就算好的旧文本。
+             */
             Text(
-                "记录时间：${Units.dateTime(editor.endedAt)}　·　单击数据可修改",
+                "用餐时间：${Units.dateTime(editor.startedAt)} 至 ${Units.dateTime(editor.endedAt)}" +
+                    "　·　单击数据可修改",
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),

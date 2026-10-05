@@ -132,12 +132,29 @@ class Account(
 }
 
 data class ChartPoint(val x: String, val y: Int)
+
+/**
+ * 统计图的数据。
+ *
+ * 由 [Store.chartData] 按「统计图设置」现算出来（x 轴取哪一项、y 轴取哪一项、显示范围、
+ * 当前单位），所以设置一改，重新读一次库就有新图 —— 绘制那边不再自己挑数据。
+ */
 data class ChartData(
+    /** x 轴标题，如「用餐完成时间」。 */
     val xLabel: String,
+    /** y 轴标题，如「摄入能量/kJ」（带当前单位）。 */
     val yLabel: String,
+    /** y 轴刻度值（线性刻度下的真实值；对数刻度时由绘制侧做 log 变换）。 */
     val yTicks: List<Int>,
+    /** x 轴刻度文本；**只给要画出来的那些点**（点多时会隔几个取一个，见 [labelEvery]）。 */
     val xTicks: List<String>,
     val points: List<ChartPoint>,
+    /**
+     * x 轴标签的抽取间隔：每隔这么多点画一个标签（1 = 每个都画）。
+     *
+     * 点一多，斜排的时间文本会糊成一片，所以**先抽稀、再在绘制侧给最后一个点补一个标签**。
+     */
+    val labelEvery: Int = 1,
 )
 
 /**
