@@ -1011,12 +1011,14 @@ object SpoonLink {
                 emitBite(fromFrame, rawMark)
             }
             'A' -> {
+                /*
+                 * 只把应答交给上层，**这里不再自己打版本日志、也不弹提示**。
+                 *
+                 * 版本信息由监听方（`BleSpoon.onSpoonEvent`）统一打成一条 INFO ——
+                 * 放在那里是因为它是"给现场排查看的信息"，而提示文案归宿主管。
+                 * 连接时用户只需要看到"已连接"那一句。
+                 */
                 listeners.forEach { it.onSpoonEvent(event) }
-                // 应答里如果带版本号，直接提示一下，便于现场确认固件对不对
-                if (event.fields.firstOrNull()?.equals("VER", true) == true) {
-                    val version = event.fields.getOrNull(1) ?: ""
-                    if (version.isNotBlank()) say("勺子固件版本：$version")
-                }
             }
             'E' -> {
                 val text = event.fields.drop(1).joinToString(",")

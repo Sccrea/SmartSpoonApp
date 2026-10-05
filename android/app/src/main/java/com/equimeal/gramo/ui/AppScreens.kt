@@ -368,16 +368,19 @@ fun FavoritesScreen(a: MainActivity) {
         }
 
         shown.forEach { food ->
+            /*
+             * 整行可点 = 打开这道菜的编辑界面。
+             *
+             * 原来行尾挂一颗「编辑」按钮，现在去掉了：这颗按钮和"点这一行"做的是同一件事，
+             * 而多一个点击目标就多一套按压反馈（点按钮有水波、点行没有），看起来像两个功能。
+             * 整行可点之后，收藏列表与菜品库两处的行行为也统一了。
+             */
             ListRow(
                 title = food.name,
                 // 收藏时间这里存的是时间戳，格式化推迟到这一刻 —— 「时间显示年 / 秒」才跟着设置走
                 subtitle = "收藏时间: " + favoriteText(food.favoriteAtMs),
+                onClick = { a.handleDishAction(food, DishAction.Edit) },
                 leading = { CoverBox { Text(State.emojiFor(food), fontSize = 26.sp) } },
-                trailing = {
-                    OutlinedButton(onClick = { a.handleDishAction(food, DishAction.Edit) }) {
-                        Text("编辑")
-                    }
-                },
             )
         }
 

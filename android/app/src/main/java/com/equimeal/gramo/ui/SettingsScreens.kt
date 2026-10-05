@@ -189,18 +189,13 @@ fun DeviceSettingsScreen(a: SettingsHost) {
             )
         }
 
-        item {
-            PrefRow(
-                icon = Icons.Filled.Bluetooth,
-                title = "启动时自动连接",
-                // 说明这是固定行为，而不是一个坏掉的开关 —— 否则用户会找"哪里能打开它"
-                summary = if (State.bleSpoonAddress.isBlank()) {
-                    "还没有连接过智味勺：连上一次之后，下次打开应用会自动回连"
-                } else {
-                    "打开应用会自动回连「${State.bleSpoonName.ifBlank { "智味勺" }}」"
-                },
-            )
-        }
+        /*
+         * 「启动时自动连接」这一行去掉了。
+         *
+         * 它本来就是一句**纯说明**（自动回连是固定行为，没有开关可点），
+         * 而"当前已连接"那一行已经回答了用户真正想知道的事（现在连上没有）。
+         * 留着只占一屏位置，还要用户读一段解释"为什么这里不能点"。
+         */
 
         // 作用域：已保存的智味勺 / 附近的智味勺。整行可点，弹出两项选择。
         item {
@@ -217,6 +212,15 @@ fun DeviceSettingsScreen(a: SettingsHost) {
 
         item { PrefCategory("蓝牙") }
 
+        /*
+         * 蓝牙这一行**只显示一颗按钮**：
+         * - 连着勺子 → 「断开连接」；
+         * - 没连 → 「扫描附近的智味勺」。
+         *
+         * 两颗不同时出现是有原因的：扫描会**先把当前连接断开**（`startScan` 里就是这么做的），
+         * 所以"已连接"的时候给你一颗「扫描」，等于一颗会悄悄断线的按钮。
+         * 而这两件事本来也不可能同时做，并排放着只会让人犹豫该点哪个。
+         */
         item {
             Row(
                 Modifier
@@ -224,12 +228,12 @@ fun DeviceSettingsScreen(a: SettingsHost) {
                     .padding(horizontal = 24.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                PillButton(if (SpoonLink.scanning) "正在扫描…" else "扫描附近的智味勺") {
-                    a.scanSpoons()
-                }
-                Spacer(Modifier.width(8.dp))
                 if (SpoonLink.ready) {
                     PillButton("断开连接") { a.disconnectSpoon() }
+                } else {
+                    PillButton(if (SpoonLink.scanning) "正在扫描…" else "扫描附近的智味勺") {
+                        a.scanSpoons()
+                    }
                 }
             }
         }
@@ -477,14 +481,17 @@ private fun MenuFoodLine(food: Food) {
 /* ------------------------------------------------------------ p.17 杂项 */
 
 /**
- * 杂项：时间显示的两个开关、热量/重量单位、服务器地址与导入。
+ * 杂项：用餐提醒、时间显示的两个开关、热量/重量单位、服务器地址（点开可改）。
  *
- * 这里的四项设置都是**真的生效**的：
+ * 这里的设置都是**真的生效**的：
  * - 两个时间开关决定 [Units.dateTime] 的格式串（用餐记录、记录详情、收藏时间都走它）；
  * - 两个单位决定 [Units] 的换算（用餐中读数、用餐结果、用餐记录、统计、折线图、菜品密度…）。
  *
  * 其中「统计数据汇总」与折线图的文字是读库时就算好放进 [State.data] 的，
  * 所以改完这几项顺手重读一次本地库（[SettingsHost.loadFromStore]），否则那两页会停在旧单位。
+ *
+ * 这一页**刻意只留"设置"**：服务器地址那一行点开就是弹窗（所以不再另给一颗「修改地址」按钮），
+ * 而「从服务器导入菜品」挪到了它该在的地方 —— 菜品库（见 [MealFlowHost.importDishesFromServer]）。
  */
 @Composable
 fun MiscScreen(a: SettingsHost) {
@@ -574,6 +581,14 @@ fun MiscScreen(a: SettingsHost) {
 
         item { PrefCategory("服务器") }
 
+        /*
+         * 只留这一行"服务器地址"（点它就能改地址，行内也显示当前地址与连接状态）。
+         *
+         * 原来下面还并排着两颗按钮「修改地址」与「从服务器导入菜品」，都去掉了：
+         * - 「修改地址」与这一行**做的是同一件事**（都打开同一个弹窗），重复；
+         * - 「从服务器导入菜品」在「菜品库」页里已经有一个入口，而那里才是它该在的地方
+         *   （导入的是菜品，用户找它时会去菜品库，不会来"杂项"）。
+         */
         item {
             PrefRow(
                 icon = Icons.Filled.Bluetooth,
@@ -582,19 +597,6 @@ fun MiscScreen(a: SettingsHost) {
                 onClick = { a.showServerDialog() },
                 trailing = { OnlineTail() },
             )
-        }
-
-        item {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                PillButton("修改地址") { a.showServerDialog() }
-                Spacer(Modifier.width(8.dp))
-                PillButton("从服务器导入菜品") { a.importFromServer() }
-            }
         }
     }
 }

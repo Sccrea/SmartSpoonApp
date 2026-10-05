@@ -189,7 +189,7 @@ abstract class BaseSettingsActivity : BasePageActivity(), SettingsHost, DialogAc
 
     override fun goOfflineDemo() {
         State.online = false
-        State.loadError = "离线模式：请在「设置 → 杂项」填写服务器地址"
+        State.loadError = "离线模式：请在「设置 → 杂项」点「服务器地址」填写"
         closeOverlay()
         State.data = null
     }

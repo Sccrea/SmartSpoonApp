@@ -80,7 +80,9 @@ interface MealFlowHost {
      * 从服务器把菜品库拉回本地（加菜页空状态里的那个按钮）。
      *
      * 放在这个接口上，是因为"菜品库是空的"这件事**最先被用户看见的地方就是加菜页** ——
-     * 原来的导入入口只在「设置 → 杂项」里，用户站在那里不知道要去哪。
+     * 用户站在那里需要一个就在手边的入口，而不是切到设置里去找。
+     * （「设置 → 杂项」里那颗「从服务器导入菜品」按钮已经去掉了：导入的是菜品，
+     * 这个入口留在菜品相关的地方更合理。）
      */
     fun importDishesFromServer()
     fun finishSelecting()
@@ -332,7 +334,7 @@ abstract class BaseMealActivity : BasePageActivity(), MealFlowHost, DialogAction
 
     override fun goOfflineDemo() {
         State.online = false
-        State.loadError = "离线模式：请在「设置 → 杂项」填写服务器地址"
+        State.loadError = "离线模式：请在「设置 → 杂项」点「服务器地址」填写"
         closeOverlay()
         State.data = null
     }

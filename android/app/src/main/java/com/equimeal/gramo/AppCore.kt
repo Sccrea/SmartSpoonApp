@@ -438,7 +438,7 @@ object AppCore {
             if (hit == null) {
                 main.post {
                     State.online = false
-                    State.loadError = "无法连接服务器，请在「设置 → 杂项」里填写服务器地址"
+                    State.loadError = "无法连接服务器，请在「设置 → 杂项」点「服务器地址」填写"
                     onDone("没有从服务器读到菜品")
                 }
                 return@Thread

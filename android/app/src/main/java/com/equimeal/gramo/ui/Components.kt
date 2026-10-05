@@ -217,12 +217,13 @@ fun ListRow(
 /* ------------------------------------------------------------ 食物行 */
 
 /**
- * 菜品列表的一行：封面用 emoji，右侧是「加入 / 已加入」图标按钮 + ⋮。
+ * 菜品列表的一行：封面用 emoji，右侧是「加入 / 已加入」状态图标 + ⋮。
  *
- * 两处刻意的取舍，都是为了贴合 Gramophone 的行宽（75dp 行、尾部只放 48dp 图标控件）：
- * - 「食用次数」并进副标题——原来和按钮并排放在右侧，会把副标题挤成「能量密度: 2.1…」；
- * - 「添加到菜单 / 已添加」用图标（＋ / ✓）而不是带字胶囊——文字按钮太宽，副标题放不下。
- *   状态同时由底部托盘的已选列表体现，语义由 contentDescription 提供给读屏。
+ * 两个刻意的取舍：
+ * - 行尾只放图标（＋ / ✓）而不是带字胶囊 —— 文字按钮太宽，副标题会被挤成「能量密度: 2.1…」；
+ * - **整行是唯一的"加入 / 取消加入"入口**，那颗圆形图标只是**状态指示器**：
+ *   它不接收点击（`enabled = false`，理由见下面的注释），因此不存在
+ *   "点圆形按钮"和"点整行"两套按压反馈。勾选态仍由 contentDescription 提供给读屏。
  */
 @Composable
 fun FoodRow(
@@ -235,16 +236,23 @@ fun FoodRow(
     ListRow(
         title = food.name,
         subtitle = "能量密度: ${Units.density(food.density)} · 食用 ${food.times} 次",
+        // 整行可点 → 加入 / 取消加入这一道菜
+        onClick = if (showToggle) ({ onToggle?.invoke() }) else null,
         leading = { CoverBox { Text(State.emojiFor(food), fontSize = 26.sp) } },
         trailing = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (showToggle) {
-                    // 只用一个按钮、在内容里切换图标：
-                    // 如果写成 if (selected) 两个不同的 IconButton，勾选状态一变，
-                    // 整个按钮节点会被销毁重建，**点击水波会在刚扩散时就被掐断**。
-                    // 保持同一个节点，水波才能播完（旧版 View 代码里的 applyFoodButtonState
-                    // 「只换内容层、水波层不动」解决的正是同一件事）。
-                    FilledTonalIconButton(onClick = { onToggle?.invoke() }) {
+                    /*
+                     * 纯指示器：`enabled = false` 让这颗按钮**不再处理点击**，水波随之消失。
+                     *
+                     * 为什么用 `enabled = false` 而不是 `onClick = null`：Material3 1.3.1 的
+                     * `FilledTonalIconButton` 把 `onClick` 声明成**非空必填**（`Function0<Unit>`），
+                     * 传不了 null（`javap` 查过 classes.jar 确认）。
+                     * 禁用只影响**内容色**（图标），容器仍是 `secondaryContainer`，外观与原来一致。
+                     *
+                     * 仍然用**同一个节点**在内容里换图标：选中态切换时不重建节点，图标替换更干脆。
+                     */
+                    FilledTonalIconButton(onClick = {}, enabled = false) {
                         if (selected) {
                             Icon(Icons.Filled.Check, contentDescription = "已添加")
                         } else {
@@ -253,7 +261,7 @@ fun FoodRow(
                     }
                 }
                 if (onMore != null) {
-                    DishMenuButton(onMore)
+                    DishMenuButton(favorite = food.favorite, onSelect = onMore)
                 } else {
                     Spacer(Modifier.width(8.dp))
                 }
@@ -262,9 +270,14 @@ fun FoodRow(
     )
 }
 
-/** 菜品行的「⋮」：收藏 / 编辑 / 删除，用 MD3 的 `DropdownMenu`。 */
+/**
+ * 菜品行的「⋮」：收藏 / 编辑 / 删除，用 MD3 的 `DropdownMenu`。
+ *
+ * 收藏那一项**按当前状态显示**："已收藏"就写「取消收藏」，没收藏就写「收藏」。
+ * （原来两种状态都写「收藏 / 取消收藏」，用户得先点开才知道会发生什么。）
+ */
 @Composable
-fun DishMenuButton(onSelect: (DishAction) -> Unit) {
+fun DishMenuButton(favorite: Boolean, onSelect: (DishAction) -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { open = true }) {
@@ -272,7 +285,7 @@ fun DishMenuButton(onSelect: (DishAction) -> Unit) {
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             DropdownMenuItem(
-                text = { Text("收藏 / 取消收藏") },
+                text = { Text(if (favorite) "取消收藏" else "收藏") },
                 onClick = { open = false; onSelect(DishAction.ToggleFavorite) },
             )
             DropdownMenuItem(
